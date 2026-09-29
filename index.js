@@ -315,14 +315,18 @@ async function handleMessage(update) {
   }
 
   if (cmd === '.tx') {
-    const cleaned = text.replace(/@\S+/g, '').trim();
-    const parts = cleaned.split(/\s+/);
-    if (parts.length < 3) {
-      return sendMessage(chatId, '❌ Cú pháp: .tx [tài/xỉu] [số tiền]\n\nVí dụ: .tx tài 10000\n\n' + DEV);
-    }
-    const choice = parts[1];
-    const amount = parseInt(parts[2].replace(/[.,]/g, ''), 10);
-    return handleBet(chatId, user, choice, amount);
+  const lowerText = text.toLowerCase();
+  const txIndex = lowerText.indexOf('.tx');
+  const afterTx = text.substring(txIndex + 3).trim();
+  const parts = afterTx.split(/\s+/);
+  
+  if (parts.length < 2) {
+    return sendMessage(chatId, '❌ Cú pháp: .tx [tài/xỉu] [số tiền]\n\nVí dụ: .tx tài 10000\n\n' + DEV);
+  }
+  
+  const choice = parts[0];
+  const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
+  return handleBet(chatId, user, choice, amount);
   }
 
   if (cmd === '.dice') {

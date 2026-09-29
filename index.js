@@ -7,7 +7,7 @@ app.use(express.json());
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const BASE_URL = `https://bot-api.zaloplatforms.com/bot${BOT_TOKEN}`;
 
-const DEV = 'Dev by Duong Quoc Bao';
+const DEV = 'Dev by Dương Quốc Bảo';
 const START_BALANCE = 100000;
 const DAILY_AMOUNT = 100000;
 const DAILY_COOLDOWN = 24 * 60 * 60 * 1000;
@@ -24,13 +24,11 @@ async function sendMessage(chatId, text) {
       chat_id: chatId,
       text: text
     });
-    console.log('Da gui toi ' + chatId);
+    console.log('Đã gửi tới ' + chatId);
   } catch (err) {
-    console.error('Loi gui:', err.response ? err.response.data : err.message);
+    console.error('Lỗi gửi:', err.response ? err.response.data : err.message);
   }
 }
-
-const DICE_EMOJI = ['1', '2', '3', '4', '5', '6'];
 
 function rollDice() {
   return [
@@ -43,7 +41,7 @@ function rollDice() {
 function playTaiXiu() {
   const dice = rollDice();
   const total = dice[0] + dice[1] + dice[2];
-  const result = total >= 11 ? 'Tai' : 'Xiu';
+  const result = total >= 11 ? 'Tài' : 'Xỉu';
   return { dice: dice, total: total, result: result };
 }
 
@@ -52,13 +50,13 @@ function getUser(userId, name) {
     users[userId] = {
       balance: START_BALANCE,
       lastDaily: 0,
-      name: name || 'Nguoi choi',
+      name: name || 'Người chơi',
       winCount: 0,
       loseCount: 0,
       totalBet: 0,
       createdAt: Date.now()
     };
-    console.log('User moi: ' + name + ' (' + userId + ')');
+    console.log('User mới: ' + name + ' (' + userId + ')');
   }
   return users[userId];
 }
@@ -68,84 +66,84 @@ function formatMoney(amount) {
 }
 
 function getHelpText() {
-  return '🎰 BOT TAI XIU 🎰\n' +
-    '----------------------------\n' +
-    '💰 LENH TIEN TE:\n' +
-    '• .tx tai 10000 - Cuoc Tai\n' +
-    '• .tx xiu 10000 - Cuoc Xiu\n' +
-    '• .bal - Xem so du\n' +
-    '• .daily - Nhan 100k/24h\n' +
-    '• .top - Bang xep hang\n' +
-    '• .history - Lich su phien\n' +
-    '\n🎮 LENH KHAC:\n' +
-    '• .dice - Lac xuc xac\n' +
-    '• .coin - Tung dong xu\n' +
-    '• .joke - Chuyen cuoi\n' +
-    '• .8ball [cau hoi] - Tien tri\n' +
-    '• .me - Thong tin ban than\n' +
-    '\n----------------------------\n' +
-    '🎁 Moi vao: +100.000 VND\n' +
-    '🎁 Moi 24h: +100.000 VND\n' +
-    '----------------------------\n' +
+  return '🎰 BOT TÀI XỈU 🎰\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '💰 LỆNH TIỀN TỆ:\n' +
+    '• .tx tài 10000 - Cược Tài\n' +
+    '• .tx xỉu 10000 - Cược Xỉu\n' +
+    '• .bal - Xem số dư\n' +
+    '• .daily - Nhận 100k/24h\n' +
+    '• .top - Bảng xếp hạng\n' +
+    '• .history - Lịch sử phiên\n' +
+    '\n🎮 LỆNH KHÁC:\n' +
+    '• .dice - Lắc xúc xắc\n' +
+    '• .coin - Tung đồng xu\n' +
+    '• .joke - Chuyện cười\n' +
+    '• .8ball [câu hỏi] - Tiên tri\n' +
+    '• .me - Thông tin bản thân\n' +
+    '\n━━━━━━━━━━━━━━━━━━\n' +
+    '🎁 Mới vào: +100.000 VND\n' +
+    '🎁 Mỗi 24h: +100.000 VND\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
     DEV;
 }
 
 function getBalText(user) {
-  return '💰 SO DU\n' +
-    '----------------------------\n' +
-    '👤 Ten: ' + user.name + '\n' +
-    '💵 So du: ' + formatMoney(user.balance) + '\n' +
-    '🏆 Thang: ' + user.winCount + ' | 💀 Thua: ' + user.loseCount + '\n' +
-    '🎯 Tong cuoc: ' + formatMoney(user.totalBet) + '\n' +
-    '----------------------------\n' +
+  return '💰 SỐ DƯ\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '👤 Tên: ' + user.name + '\n' +
+    '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+    '🏆 Thắng: ' + user.winCount + ' | 💀 Thua: ' + user.loseCount + '\n' +
+    '🎯 Tổng cược: ' + formatMoney(user.totalBet) + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
     DEV;
 }
 
 function getMeText(user) {
-  return '👤 THONG TIN\n' +
-    '----------------------------\n' +
-    '📛 Ten: ' + user.name + '\n' +
-    '💵 So du: ' + formatMoney(user.balance) + '\n' +
-    '🏆 Thang: ' + user.winCount + '\n' +
+  return '👤 THÔNG TIN\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '📛 Tên: ' + user.name + '\n' +
+    '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+    '🏆 Thắng: ' + user.winCount + '\n' +
     '💀 Thua: ' + user.loseCount + '\n' +
-    '🎯 Tong cuoc: ' + formatMoney(user.totalBet) + '\n' +
+    '🎯 Tổng cược: ' + formatMoney(user.totalBet) + '\n' +
     '📅 Tham gia: ' + new Date(user.createdAt).toLocaleString('vi-VN') + '\n' +
-    '----------------------------\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
     DEV;
 }
 
 function getTopText() {
   const keys = Object.keys(users);
   if (keys.length === 0) {
-    return '🏆 BANG XEP HANG\n----------------------------\nChua co ai choi!\n----------------------------\n' + DEV;
+    return '🏆 BẢNG XẾP HẠNG\n━━━━━━━━━━━━━━━━━━\nChưa có ai chơi!\n━━━━━━━━━━━━━━━━━━\n' + DEV;
   }
   const sorted = keys
     .map(function(k) { return { id: k, user: users[k] }; })
     .sort(function(a, b) { return b.user.balance - a.user.balance; })
     .slice(0, 10);
 
-  let text = '🏆 TOP 10 DAI GIA\n----------------------------\n';
+  let text = '🏆 TOP 10 ĐẠI GIA\n━━━━━━━━━━━━━━━━━━\n';
   for (let i = 0; i < sorted.length; i++) {
     const u = sorted[i].user;
     const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
     text += rank + ' ' + u.name + ': ' + formatMoney(u.balance) + '\n';
   }
-  text += '----------------------------\n' + DEV;
+  text += '━━━━━━━━━━━━━━━━━━\n' + DEV;
   return text;
 }
 
 function getHistoryText() {
   if (history.length === 0) {
-    return '📜 LICH SU\n----------------------------\nChua co phien nao!\n----------------------------\n' + DEV;
+    return '📜 LỊCH SỬ\n━━━━━━━━━━━━━━━━━━\nChưa có phiên nào!\n━━━━━━━━━━━━━━━━━━\n' + DEV;
   }
   const recent = history.slice(-10).reverse();
-  let text = '📜 10 PHIEN GAN NHAT\n----------------------------\n';
+  let text = '📜 10 PHIÊN GẦN NHẤT\n━━━━━━━━━━━━━━━━━━\n';
   for (let i = 0; i < recent.length; i++) {
     const h = recent[i];
     const sid = ('00000' + h.id).slice(-5);
     text += '#' + sid + ' | ' + h.dice.join('-') + ' = ' + h.total + ' | ' + h.result + '\n';
   }
-  text += '----------------------------\n' + DEV;
+  text += '━━━━━━━━━━━━━━━━━━\n' + DEV;
   return text;
 }
 
@@ -157,20 +155,20 @@ function getDailyText(user) {
     const remaining = DAILY_COOLDOWN - elapsed;
     const hours = Math.floor(remaining / (60 * 60 * 1000));
     const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
-    return '⏳ CHUA DEN LUOT NHAN\n' +
-      '----------------------------\n' +
-      '⏰ Con lai: ' + hours + 'h ' + minutes + 'm\n' +
-      '----------------------------\n' +
+    return '⏳ CHƯA ĐẾN LƯỢT NHẬN\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '⏰ Còn lại: ' + hours + 'h ' + minutes + 'm\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
       DEV;
   }
 
   user.balance += DAILY_AMOUNT;
   user.lastDaily = now;
-  return '🎁 NHAN DAILY THANH CONG!\n' +
-    '----------------------------\n' +
+  return '🎁 NHẬN DAILY THÀNH CÔNG!\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
     '💰 +' + formatMoney(DAILY_AMOUNT) + '\n' +
-    '💵 So du moi: ' + formatMoney(user.balance) + '\n' +
-    '----------------------------\n' +
+    '💵 Số dư mới: ' + formatMoney(user.balance) + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
     DEV;
 }
 
@@ -178,29 +176,29 @@ async function handleBet(chatId, user, choice, amount) {
   const choiceLower = (choice || '').toLowerCase();
   let validChoice = null;
 
-  if (choiceLower === 'tai' || choiceLower === 'tài') validChoice = 'Tai';
-  else if (choiceLower === 'xiu' || choiceLower === 'xỉu') validChoice = 'Xiu';
+  if (choiceLower === 'tai' || choiceLower === 'tài') validChoice = 'Tài';
+  else if (choiceLower === 'xiu' || choiceLower === 'xỉu') validChoice = 'Xỉu';
 
   if (!validChoice) {
-    return sendMessage(chatId, '❌ Sai cu phap!\n\nDung: .tx tai 10000\nHoac: .tx xiu 10000\n\n' + DEV);
+    return sendMessage(chatId, '❌ Sai cú pháp!\n\nDùng: .tx tài 10000\nHoặc: .tx xỉu 10000\n\n' + DEV);
   }
 
   if (isNaN(amount) || amount <= 0) {
-    return sendMessage(chatId, '❌ So tien khong hop le!\n\nVi du: .tx tai 10000\n\n' + DEV);
+    return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\nVí dụ: .tx tài 10000\n\n' + DEV);
   }
 
   amount = Math.floor(amount);
 
   if (amount < MIN_BET) {
-    return sendMessage(chatId, '❌ Cuoc toi thieu: ' + formatMoney(MIN_BET) + '\n\n' + DEV);
+    return sendMessage(chatId, '❌ Cược tối thiểu: ' + formatMoney(MIN_BET) + '\n\n' + DEV);
   }
 
   if (amount > MAX_BET) {
-    return sendMessage(chatId, '❌ Cuoc toi da: ' + formatMoney(MAX_BET) + '\n\n' + DEV);
+    return sendMessage(chatId, '❌ Cược tối đa: ' + formatMoney(MAX_BET) + '\n\n' + DEV);
   }
 
   if (user.balance < amount) {
-    return sendMessage(chatId, '❌ Khong du tien!\n\n💵 So du: ' + formatMoney(user.balance) + '\n💸 Can: ' + formatMoney(amount) + '\n\nDung .daily de nhan tien!\n\n' + DEV);
+    return sendMessage(chatId, '❌ Không đủ tiền!\n\n💵 Số dư: ' + formatMoney(user.balance) + '\n💸 Cần: ' + formatMoney(amount) + '\n\nDùng .daily để nhận tiền!\n\n' + DEV);
   }
 
   user.balance -= amount;
@@ -208,8 +206,8 @@ async function handleBet(chatId, user, choice, amount) {
 
   sessionId++;
   const game = playTaiXiu();
-  const diceStr = DICE_EMOJI[game.dice[0] - 1] + ' ' + DICE_EMOJI[game.dice[1] - 1] + ' ' + DICE_EMOJI[game.dice[2] - 1];
-  const totalStr = game.dice[0] + ' + ' + game.dice[1] + ' + ' + game.dice[2] + ' = ' + game.total;
+  const diceStr = game.dice[0] + ' + ' + game.dice[1] + ' + ' + game.dice[2];
+  const totalStr = 'Tổng = ' + game.total;
 
   history.push({
     id: sessionId,
@@ -232,31 +230,31 @@ async function handleBet(chatId, user, choice, amount) {
     user.balance += winAmount;
     user.winCount++;
 
-    return sendMessage(chatId, '🎰 PHIEN ' + sessionStr + '\n' +
-      '----------------------------\n' +
-      '🎲 Xuc xac: ' + diceStr + '\n' +
-      '📊 Tong: ' + totalStr + '\n' +
-      '🎯 Ket qua: ' + (game.result === 'Tai' ? '🔴 TAI' : '🔵 XIU') + '\n' +
-      '----------------------------\n' +
-      '🎉 BAN THANG!\n' +
-      '✅ Cuoc: ' + validChoice + ' - ' + formatMoney(amount) + '\n' +
-      '💰 Nhan: +' + formatMoney(winAmount) + '\n' +
-      '💵 So du: ' + formatMoney(user.balance) + '\n' +
-      '----------------------------\n' +
+    return sendMessage(chatId, '🎰 PHIÊN ' + sessionStr + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🎲 Xúc xắc: ' + diceStr + '\n' +
+      '📊 ' + totalStr + '\n' +
+      '🎯 Kết quả: ' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🎉 BẠN THẮNG!\n' +
+      '✅ Cược: ' + validChoice + ' - ' + formatMoney(amount) + '\n' +
+      '💰 Nhận: +' + formatMoney(winAmount) + '\n' +
+      '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   } else {
     user.loseCount++;
-    return sendMessage(chatId, '🎰 PHIEN ' + sessionStr + '\n' +
-      '----------------------------\n' +
-      '🎲 Xuc xac: ' + diceStr + '\n' +
-      '📊 Tong: ' + totalStr + '\n' +
-      '🎯 Ket qua: ' + (game.result === 'Tai' ? '🔴 TAI' : '🔵 XIU') + '\n' +
-      '----------------------------\n' +
-      '😢 BAN THUA!\n' +
-      '❌ Cuoc: ' + validChoice + ' - ' + formatMoney(amount) + '\n' +
-      '💸 Mat: -' + formatMoney(amount) + '\n' +
-      '💵 So du: ' + formatMoney(user.balance) + '\n' +
-      '----------------------------\n' +
+    return sendMessage(chatId, '🎰 PHIÊN ' + sessionStr + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🎲 Xúc xắc: ' + diceStr + '\n' +
+      '📊 ' + totalStr + '\n' +
+      '🎯 Kết quả: ' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '😢 BẠN THUA!\n' +
+      '❌ Cược: ' + validChoice + ' - ' + formatMoney(amount) + '\n' +
+      '💸 Mất: -' + formatMoney(amount) + '\n' +
+      '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
 }
@@ -269,7 +267,7 @@ function extractCommand(text) {
 }
 
 async function handleMessage(update) {
-  console.log('Nhan update:', JSON.stringify(update, null, 2));
+  console.log('Nhận update:', JSON.stringify(update, null, 2));
 
   const message = update.message || update;
   if (!message) return;
@@ -277,7 +275,7 @@ async function handleMessage(update) {
   const chatId = message.chat && message.chat.id ? message.chat.id : message.chat_id;
   const chatType = message.chat && message.chat.chat_type ? message.chat.chat_type : 'PRIVATE';
   const senderId = message.from && message.from.id ? message.from.id : (message.from_id || 'unknown');
-  const senderName = message.from && message.from.display_name ? message.from.display_name : 'Nguoi choi';
+  const senderName = message.from && message.from.display_name ? message.from.display_name : 'Người chơi';
 
   const text = (message.text || '').trim();
 
@@ -285,7 +283,7 @@ async function handleMessage(update) {
 
   const user = getUser(senderId, senderName);
 
-  console.log('chatId: ' + chatId + ' | type: ' + chatType + ' | user: ' + senderName + ' | text: ' + text);
+  console.log('ChatId: ' + chatId + ' | Type: ' + chatType + ' | User: ' + senderName + ' | Text: ' + text);
 
   const cmd = extractCommand(text);
   if (!cmd) return;
@@ -320,7 +318,7 @@ async function handleMessage(update) {
     const cleaned = text.replace(/@\S+/g, '').trim();
     const parts = cleaned.split(/\s+/);
     if (parts.length < 3) {
-      return sendMessage(chatId, '❌ Cu phap: .tx [tai/xiu] [so tien]\n\nVi du: .tx tai 10000\n\n' + DEV);
+      return sendMessage(chatId, '❌ Cú pháp: .tx [tài/xỉu] [số tiền]\n\nVí dụ: .tx tài 10000\n\n' + DEV);
     }
     const choice = parts[1];
     const amount = parseInt(parts[2].replace(/[.,]/g, ''), 10);
@@ -329,19 +327,19 @@ async function handleMessage(update) {
 
   if (cmd === '.dice') {
     const n = Math.floor(Math.random() * 6) + 1;
-    return sendMessage(chatId, '🎲 Ban lac duoc: ' + n + '\n\n' + DEV);
+    return sendMessage(chatId, '🎲 Bạn lắc được: ' + n + '\n\n' + DEV);
   }
 
   if (cmd === '.coin') {
-    const result = Math.random() < 0.5 ? 'Sap' : 'Ngua';
-    return sendMessage(chatId, '🪙 Ket qua: ' + result + '\n\n' + DEV);
+    const result = Math.random() < 0.5 ? 'Sấp' : 'Ngửa';
+    return sendMessage(chatId, '🪙 Kết quả: ' + result + '\n\n' + DEV);
   }
 
   if (cmd === '.joke') {
     const jokes = [
-      'Vi sao lap trinh vien thich toi? Vi khong co bug nao trong bong toi! 😂',
-      'Co 10 loai nguoi: loai hieu binary va loai khong hieu 🤖',
-      'Tai sao con ga di qua duong? De sang ben kia duong 🐔'
+      'Vì sao lập trình viên thích tối? Vì không có bug nào trong bóng tối! 😂',
+      'Có 10 loại người: loại hiểu binary và loại không hiểu 🤖',
+      'Tại sao con gà đi qua đường? Để sang bên kia đường 🐔'
     ];
     const joke = jokes[Math.floor(Math.random() * jokes.length)];
     return sendMessage(chatId, '😂 ' + joke + '\n\n' + DEV);
@@ -349,14 +347,14 @@ async function handleMessage(update) {
 
   if (cmd === '.8ball' || cmd === '.boid') {
     const answers = [
-      '🎱 Chac chan roi!',
-      '🎱 Khong dau ban oi!',
-      '🎱 Co the...',
-      '🎱 Dung mo!',
-      '🎱 Hoi lai sau nhe!',
-      '🎱 50/50 thoi!',
-      '🎱 Tin vao ban than di!',
-      '🎱 Cau tra loi la CO!'
+      '🎱 Chắc chắn rồi!',
+      '🎱 Không đâu bạn ơi!',
+      '🎱 Có thể...',
+      '🎱 Đừng mơ!',
+      '🎱 Hỏi lại sau nhé!',
+      '🎱 50/50 thôi!',
+      '🎱 Tin vào bản thân đi!',
+      '🎱 Câu trả lời là CÓ!'
     ];
     const answer = answers[Math.floor(Math.random() * answers.length)];
     return sendMessage(chatId, answer + '\n\n' + DEV);
@@ -366,7 +364,7 @@ async function handleMessage(update) {
     return sendMessage(chatId, getHelpText());
   }
 
-  return sendMessage(chatId, '❓ Lenh khong hop le!\n\nGo .help de xem danh sach lenh\n\n' + DEV);
+  return sendMessage(chatId, '❓ Lệnh không hợp lệ!\n\nGõ .help để xem danh sách lệnh\n\n' + DEV);
 }
 
 app.post('/webhook', async function(req, res) {
@@ -374,16 +372,16 @@ app.post('/webhook', async function(req, res) {
   try {
     await handleMessage(req.body);
   } catch (err) {
-    console.error('Loi:', err);
+    console.error('Lỗi:', err);
   }
 });
 
 app.get('/', function(req, res) {
-  res.send('Bot Tai Xiu OK! | ' + DEV);
+  res.send('Bot Tài Xỉu OK! | ' + DEV);
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
-  console.log('Bot chay port ' + PORT);
+  console.log('Bot chạy port ' + PORT);
   console.log(DEV);
 });

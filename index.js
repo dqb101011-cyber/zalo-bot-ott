@@ -572,7 +572,7 @@ async function handleBet(chatId, user, choice, amount) {
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
-    }
+}
 function extractCommand(text) {
   const lower = text.toLowerCase().trim();
   const match = lower.match(/\.([a-z0-9]+)/);
@@ -702,7 +702,6 @@ async function handleMessage(update) {
       status: 'pending'
     });
 
-    // Gửi cho ADMIN
     const adminIds = ADMIN_IDS.filter(function(id) { return id; });
     for (let i = 0; i < adminIds.length; i++) {
       try {
@@ -724,7 +723,6 @@ async function handleMessage(update) {
       } catch (e) {}
     }
 
-    // Gửi cho GROUP (nếu có)
     if (NOTIFY_GROUP_ID) {
       try {
         await sendMessage(NOTIFY_GROUP_ID,
@@ -739,7 +737,6 @@ async function handleMessage(update) {
       } catch (e) {}
     }
 
-    // Trả lời user
     return sendMessage(chatId,
       '✅ ĐÃ GỬI YÊU CẦU RÚT TIỀN\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
@@ -779,7 +776,12 @@ async function handleMessage(update) {
     return sendMessage(chatId, t);
   }
 
-  // ===== ADMIN: .duyetrut — DUYỆT RÚT (gửi ảnh + group) =====
+  // ===== TEST GIF =====
+  if (cmd === '.testgif') {
+    return sendPhoto(chatId, 'https://i.ibb.co/dC5R9mz/giphy.gif', '🎬 Test GIF');
+  }
+
+  // ===== ADMIN: .duyetrut =====
   if (cmd === '.duyetrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
@@ -797,7 +799,6 @@ async function handleMessage(update) {
 
     const imgUrl = getWithdrawImage(wd.amount);
 
-    // Gửi ảnh + caption cho user
     try {
       await sendPhoto(wd.userId, imgUrl,
         '✅ RÚT TIỀN THÀNH CÔNG\n' +
@@ -812,7 +813,6 @@ async function handleMessage(update) {
         DEV);
     } catch (e) {}
 
-    // Gửi ảnh + caption cho GROUP
     if (NOTIFY_GROUP_ID) {
       try {
         await sendPhoto(NOTIFY_GROUP_ID, imgUrl,
@@ -836,7 +836,7 @@ async function handleMessage(update) {
       DEV);
   }
 
-  // ===== ADMIN: .huyrut — HỦY RÚT =====
+  // ===== ADMIN: .huyrut =====
   if (cmd === '.huyrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
@@ -870,7 +870,6 @@ async function handleMessage(update) {
       } catch (e) {}
     }
 
-    // Gửi text cho GROUP
     if (NOTIFY_GROUP_ID) {
       try {
         await sendMessage(NOTIFY_GROUP_ID,
@@ -894,7 +893,7 @@ async function handleMessage(update) {
       DEV);
   }
 
-  // ===== ADMIN: .dsrut — DS RÚT ĐANG CHỜ =====
+  // ===== ADMIN: .dsrut =====
   if (cmd === '.dsrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const pendingWds = await Withdraw.find({ status: 'pending' }).sort({ createdAt: -1 });
@@ -919,7 +918,6 @@ async function handleMessage(update) {
   }
 
   // ===== ADMIN khác =====
-
   if (cmd === '.congtien' || cmd === '.addmoney') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();

@@ -20,14 +20,13 @@ let history = [];
 
 // ====== ẢNH XÚC XẮC ĐEN TRẮNG (WIKIMEDIA) ======
 const DICE_IMAGES = {
-  1: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Dice-1-b.svg/200px-Dice-1-b.svg.png',
-  2: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Dice-2-b.svg/200px-Dice-2-b.svg.png',
-  3: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Dice-3-b.svg/200px-Dice-3-b.svg.png',
-  4: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Dice-4-b.svg/200px-Dice-4-b.svg.png',
-  5: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Dice-5-b.svg/200px-Dice-5-b.svg.png',
-  6: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Dice-6-b.svg/200px-Dice-6-b.svg.png'
+  1: 'https://upload.wikimedia.org/wikipedia/commons/1/1b/Dice-1-b.svg',
+  2: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Dice-2-b.svg',
+  3: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Dice-3-b.svg',
+  4: 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Dice-4-b.svg',
+  5: 'https://upload.wikimedia.org/wikipedia/commons/0/08/Dice-5-b.svg',
+  6: 'https://upload.wikimedia.org/wikipedia/commons/2/26/Dice-6-b.svg'
 };
-
 // ====== EMOJI XÚC XẮC ======
 const DICE_EMOJI = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 

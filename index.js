@@ -428,11 +428,9 @@ function formatMoney(amount) {
 }
 
 function getHelpText() {
-  return '🎰 BOT TÀI XỈU 🎰\n' +
+  return '🎰 ĐỎ HAY ĐEN 🎰\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
-    '💰 LỆNH TIỀN TỆ:\n' +
-    '• .tx tài 10000 — Cược Tài\n' +
-    '• .tx xỉu 10000 — Cược Xỉu\n' +
+    '💰 LỆNH CHUNG:\n' +
     '• .sodu — Xem số dư\n' +
     '• .bxh — Bảng xếp hạng\n' +
     '• .lichsu — Lịch sử phiên\n' +
@@ -441,6 +439,11 @@ function getHelpText() {
     '• .nap — Nạp tiền\n' +
     '• .rut — Rút tiền\n' +
     '• .lenhrut — Lịch sử rút\n' +
+    '\n 🎲 TÀI XỈU: \n' +
+    '• .tx tài 10000 — Cược Tài\n' +
+    '• .tx xỉu 10000 — Cược Xỉu\n' +
+    '\n ✈️ MÁY BAY AVIATOR: \n' +
+    '• .aviator — Mở web game Aviator\n' +
     '\n⚽ GAME SÚT BÓNG:\n' +
     '• .sut [ô 1-3] [tiền] — Bắt đầu\n' +
     '• .tiep — Sút tiếp\n' +
@@ -771,7 +774,27 @@ async function handleMessage(update) {
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
-
+  // ===== .aviator — MỞ WEB GAME =====
+if (cmd === '.aviator' || cmd === '.mb' || cmd === '.game') {
+  return sendMessage(chatId,
+    '🛫 GAME AVIATOR\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🎮 Chơi Aviator trên web:\n' +
+    '👉 https://aviator-web-izxf.onrender.com\n' +
+    '\n' +
+    '📌 Cách chơi:\n' +
+    '1. Nhập ID Zalo của bạn\n' +
+    '   (Gõ .id để xem ID)\n' +
+    '2. Tạo mật khẩu (lần đầu vào)\n' +
+    '3. Đăng nhập → chơi ngay!\n' +
+    '\n' +
+    '💰 Cược chung số dư với bot\n' +
+    '🎁 Nạp tiền: .nap\n' +
+    '💵 Rút tiền: .rut\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    DEV);
+}
+  
   // ===== .sut =====
   if (cmd === '.sut' || cmd === '.sutbong') {
     if (activeGames[senderId]) {

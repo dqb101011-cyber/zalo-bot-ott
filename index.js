@@ -6,6 +6,7 @@ app.use(express.json());
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const BASE_URL = `https://bot-api.zaloplatforms.com/bot${BOT_TOKEN}`;
+const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(function(id) { return id.trim(); });
 
 const DEV = 'Dev by Dương Quốc Bảo';
 const START_BALANCE = 0;
@@ -236,6 +237,23 @@ const DICE_IMAGES = {
 };
 
 const DICE_EMOJI = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+function isAdmin(userId) {
+  return ADMIN_IDS.indexOf(String(userId)) !== -1;
+}
+
+function findUser(query) {
+  const keys = Object.keys(users);
+  if (users[query]) return { id: query, user: users[query] };
+  const q = query.toLowerCase();
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (users[k].name && users[k].name.toLowerCase().indexOf(q) !== -1) {
+      return { id: k, user: users[k] };
+    }
+  }
+  return null;
+}
+
 async function sendMessage(chatId, text) {
   try {
     await axios.post(`${BASE_URL}/sendMessage`, {
@@ -308,6 +326,15 @@ function getHelpText() {
     '\n🎮 LỆNH KHÁC:\n' +
     '• .dice — Lắc xúc xắc\n' +
     '• .coin — Tung đồng xu\n' +
+    '\n👑 LỆNH ADMIN:\n' +
+    '• .congtien [id/tên] [tiền]\n' +
+    '• .trutien [id/tên] [tiền]\n' +
+    '• .dattien [id/tên] [tiền]\n' +
+    '• .congall [tiền]\n' +
+    '• .danhsach — DS người chơi\n' +
+    '• .resetall — Reset tất cả\n' +
+    '• .xoauser [id/tên]\n' +
+    '• .thongbao [nội dung]\n' +
     '\n📖 Gõ .trogiup để xem lại\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     DEV;
@@ -469,7 +496,7 @@ async function handleBet(chatId, user, choice, amount) {
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
-}
+  }
 function extractCommand(text) {
   const lower = text.toLowerCase().trim();
   const match = lower.match(/\.([a-z0-9]+)/);
@@ -496,12 +523,128 @@ async function handleMessage(update) {
   const cmd = extractCommand(text);
   if (!cmd) return;
 
+  // ===== LỆNH USER =====
   if (cmd === '.trogiup' || cmd === '.help' || cmd === '.start') return sendMessage(chatId, getHelpText());
   if (cmd === '.sodu' || cmd === '.bal' || cmd === '.balance') return sendMessage(chatId, getBalText(user));
   if (cmd === '.toi' || cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user, senderId));
   if (cmd === '.bxh' || cmd === '.top') return sendMessage(chatId, getTopText());
   if (cmd === '.lichsu' || cmd === '.history' || cmd === '.ls') return sendMessage(chatId, getHistoryText());
 
+  // ===== LỆNH ADMIN =====
+
+  // .congtien — Cộng tiền
+  if (cmd === '.congtien' || cmd === '.addmoney') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const parts = text.split(/\s+/);
+    if (parts.length < 3) return sendMessage(chatId, '❌ Cú pháp: .congtien [id/tên] [tiền]\n\nVD: .congtien 123456789 50000\n\n' + DEV);
+    const amount = parseInt(parts[2].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    const found = findUser(parts[1]);
+    if (!found) return sendMessage(chatId, '❌ Không tìm thấy người chơi: ' + parts[1] + '\n\n' + DEV);
+    found.user.balance += amount;
+    return sendMessage(chatId, '✅ ĐÃ CỘNG TIỀN\n━━━━━━━━━━━━━━━━━━\n👤 ' + found.user.name + '\n🆔 ' + found.id + '\n💰 +' + formatMoney(amount) + '\n💵 Số dư: ' + formatMoney(found.user.balance) + '\n━━━━━━━━━━━━━━━━━━\n' + DEV);
+  }
+
+  // .trutien — Trừ tiền
+  if (cmd === '.trutien' || cmd === '.submoney') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const parts = text.split(/\s+/);
+    if (parts.length < 3) return sendMessage(chatId, '❌ Cú pháp: .trutien [id/tên] [tiền]\n\n' + DEV);
+    const amount = parseInt(parts[2].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    const found = findUser(parts[1]);
+    if (!found) return sendMessage(chatId, '❌ Không tìm thấy người chơi: ' + parts[1] + '\n\n' + DEV);
+    found.user.balance -= amount;
+    if (found.user.balance < 0) found.user.balance = 0;
+    return sendMessage(chatId, '✅ ĐÃ TRỪ TIỀN\n━━━━━━━━━━━━━━━━━━\n👤 ' + found.user.name + '\n🆔 ' + found.id + '\n💸 -' + formatMoney(amount) + '\n💵 Số dư: ' + formatMoney(found.user.balance) + '\n━━━━━━━━━━━━━━━━━━\n' + DEV);
+  }
+
+  // .dattien — Đặt số dư
+  if (cmd === '.dattien' || cmd === '.setmoney') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const parts = text.split(/\s+/);
+    if (parts.length < 3) return sendMessage(chatId, '❌ Cú pháp: .dattien [id/tên] [tiền]\n\n' + DEV);
+    const amount = parseInt(parts[2].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount < 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    const found = findUser(parts[1]);
+    if (!found) return sendMessage(chatId, '❌ Không tìm thấy người chơi: ' + parts[1] + '\n\n' + DEV);
+    found.user.balance = amount;
+    return sendMessage(chatId, '✅ ĐÃ ĐẶT SỐ DƯ\n━━━━━━━━━━━━━━━━━━\n👤 ' + found.user.name + '\n🆔 ' + found.id + '\n💵 Số dư: ' + formatMoney(amount) + '\n━━━━━━━━━━━━━━━━━━\n' + DEV);
+  }
+
+  // .congall — Cộng tiền tất cả
+  if (cmd === '.congall' || cmd === '.addall') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const parts = text.split(/\s+/);
+    if (parts.length < 2) return sendMessage(chatId, '❌ Cú pháp: .congall [tiền]\n\n' + DEV);
+    const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    const keys = Object.keys(users);
+    for (let i = 0; i < keys.length; i++) {
+      users[keys[i]].balance += amount;
+    }
+    return sendMessage(chatId, '✅ ĐÃ CỘNG ' + formatMoney(amount) + '\n👥 Cho ' + keys.length + ' người chơi\n\n' + DEV);
+  }
+
+  // .danhsach — DS user
+  if (cmd === '.danhsach' || cmd === '.listusers') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const keys = Object.keys(users);
+    if (keys.length === 0) return sendMessage(chatId, '📋 Chưa có người chơi nào!\n\n' + DEV);
+    let t = '📋 DANH SÁCH NGƯỜI CHƠI (' + keys.length + ')\n━━━━━━━━━━━━━━━━━━\n';
+    for (let i = 0; i < keys.length && i < 20; i++) {
+      const k = keys[i];
+      const u = users[k];
+      t += (i + 1) + '. ' + u.name + '\n   Mã số: ' + k + '\n   💵 ' + formatMoney(u.balance) + '\n';
+    }
+    if (keys.length > 20) t += '\n... và ' + (keys.length - 20) + ' người khác\n';
+    t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
+    return sendMessage(chatId, t);
+  }
+
+  // .resetall — Reset tất cả
+  if (cmd === '.resetall' || cmd === '.reset') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const keys = Object.keys(users);
+    for (let i = 0; i < keys.length; i++) {
+      users[keys[i]].balance = START_BALANCE;
+      users[keys[i]].winCount = 0;
+      users[keys[i]].loseCount = 0;
+      users[keys[i]].totalBet = 0;
+    }
+    return sendMessage(chatId, '✅ ĐÃ RESET ' + keys.length + ' NGƯỜI CHƠI\n💰 Số dư: ' + formatMoney(START_BALANCE) + '\n\n' + DEV);
+  }
+
+  // .xoauser — Xóa user
+  if (cmd === '.xoauser' || cmd === '.removeuser') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const parts = text.split(/\s+/);
+    if (parts.length < 2) return sendMessage(chatId, '❌ Cú pháp: .xoauser [id/tên]\n\n' + DEV);
+    const found = findUser(parts[1]);
+    if (!found) return sendMessage(chatId, '❌ Không tìm thấy người chơi: ' + parts[1] + '\n\n' + DEV);
+    const name = found.user.name;
+    delete users[found.id];
+    return sendMessage(chatId, '🗑️ ĐÃ XÓA NGƯỜI CHƠI\n👤 ' + name + '\n🆔 ' + found.id + '\n\n' + DEV);
+  }
+
+  // .thongbao — Gửi thông báo
+  if (cmd === '.thongbao' || cmd === '.broadcast') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const keyword = cmd === '.thongbao' ? '.thongbao' : '.broadcast';
+    const content = text.substring(text.indexOf(keyword) + keyword.length).trim();
+    if (!content) return sendMessage(chatId, '❌ Cú pháp: .thongbao [nội dung]\n\n' + DEV);
+    const keys = Object.keys(users);
+    let success = 0;
+    for (let i = 0; i < keys.length; i++) {
+      try {
+        await sendMessage(keys[i], '📢 THÔNG BÁO TỪ ADMIN\n━━━━━━━━━━━━━━━━━━\n' + content + '\n━━━━━━━━━━━━━━━━━━\n' + DEV);
+        success++;
+      } catch (e) {}
+    }
+    return sendMessage(chatId, '✅ ĐÃ GỬI THÔNG BÁO\n👥 Cho ' + success + '/' + keys.length + ' người\n\n' + DEV);
+  }
+
+  // ===== LỆNH CƯỢC =====
   if (cmd === '.tx') {
     const lowerText = text.toLowerCase();
     const txIndex = lowerText.indexOf('.tx');

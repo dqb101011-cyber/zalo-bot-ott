@@ -38,6 +38,34 @@ function getWithdrawImage(amount) {
   return WITHDRAW_IMAGES[100000];
 }
 
+// Ảnh sút bóng
+const SHOOT_IMAGES = {
+  'trai-trai': 'https://i.ibb.co/sd07ssmc/Picsart-26-09-30-23-42-18-849.jpg',
+  'trai-giua': 'https://i.ibb.co/QFSRhpNq/Picsart-26-09-30-23-38-10-143.png',
+  'trai-phai': 'https://i.ibb.co/RTHbk1b7/Picsart-26-09-30-23-40-40-099.png',
+  'giua-trai': 'https://i.ibb.co/9HbzWZj4/IMG-20260930-233402.png',
+  'giua-giua': 'https://i.ibb.co/dwCPs8JC/IMG-20260930-233539.png',
+  'giua-phai': 'https://i.ibb.co/4ZDy53qQ/IMG-20260930-233456.png',
+  'phai-trai': 'https://i.ibb.co/7dKPY9K2/IMG-20260930-233439.png',
+  'phai-giua': 'https://i.ibb.co/TDdyGLpX/IMG-20260930-233424.png',
+  'phai-phai': 'https://i.ibb.co/wN4Xs2SZ/IMG-20260930-233331.png'
+};
+
+// Hệ số sút liên tiếp
+const SUT_RATES = [
+  { level: 1, rate: 1.2 },
+  { level: 2, rate: 1.6 },
+  { level: 3, rate: 2.0 },
+  { level: 4, rate: 2.5 },
+  { level: 5, rate: 3.0 },
+  { level: 6, rate: 4.0 },
+  { level: 7, rate: 5.0 },
+  { level: 8, rate: 7.0 },
+  { level: 9, rate: 11.7 }
+];
+
+const activeGames = {};
+
 mongoose.connect(MONGODB_URI)
   .then(function() { console.log('✅ Đã kết nối MongoDB'); })
   .catch(function(err) { console.error('❌ Lỗi MongoDB:', err.message); });
@@ -415,6 +443,11 @@ function getHelpText() {
     '• .nap — Nạp tiền\n' +
     '• .rut — Rút tiền\n' +
     '• .lenhrut — Lịch sử rút\n' +
+    '\n⚽ GAME SÚT BÓNG:\n' +
+    '• .sut [ô 1-3] [tiền] — Bắt đầu\n' +
+    '• .tiep — Sút tiếp\n' +
+    '• .lay — Nhận tiền\n' +
+    '• .huy — Hủy game\n' +
     '\n🎮 LỆNH KHÁC:\n' +
     '• .dice — Lắc xúc xắc\n' +
     '• .coin — Tung đồng xu\n' +
@@ -573,6 +606,119 @@ async function handleBet(chatId, user, choice, amount) {
       DEV);
   }
 }
+
+// ===== HÀM SÚT BÓNG =====
+async function playShot(chatId, user, position) {
+  const game = activeGames[user.userId];
+  if (!game) {
+    return sendMessage(chatId, '❌ Không có game đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
+  }
+
+  const positionNames = { 1: 'trai', 2: 'giua', 3: 'phai' };
+  const positionText = { 1: 'Trái', 2: 'Giữa', 3: 'Phải' };
+
+  const keeper = Math.floor(Math.random() * 3) + 1;
+  const keeperText = { 1: 'Trái', 2: 'Giữa', 3: 'Phải' };
+
+  const imgKey = positionNames[position] + '-' + positionNames[keeper];
+  const imgUrl = SHOOT_IMAGES[imgKey];
+
+  const isGoal = position !== keeper;
+  const currentLevel = game.level;
+
+  if (!isGoal) {
+    // BỊ CHẶN → mất hết
+    const lostAmount = game.betAmount;
+    delete activeGames[user.userId];
+    user.loseCount++;
+    await user.save();
+
+    if (imgUrl) {
+      try {
+        await sendPhoto(chatId, imgUrl,
+          '⚽ SÚT LẦN ' + currentLevel + '/9\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🎯 Bạn sút: Ô ' + position + ' (' + positionText[position] + ')\n' +
+          '🧤 Thủ môn: Ô ' + keeper + ' (' + keeperText[keeper] + ')\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '❌ BỊ CHẶN!\n' +
+          '💸 Mất: ' + formatMoney(lostAmount) + '\n' +
+          '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+        return;
+      } catch (e) {}
+    }
+
+    return sendMessage(chatId,
+      '⚽ SÚT LẦN ' + currentLevel + '/9\n' +
+      '❌ BỊ CHẶN!\n' +
+      '💸 Mất: ' + formatMoney(lostAmount) + '\n' +
+      '💵 Số dư: ' + formatMoney(user.balance) + '\n\n' + DEV);
+  }
+
+  // VÀO → tăng level
+  game.level++;
+
+  // Nếu đạt level 10 (sút thành công 9 lần) → tự động lấy
+  if (game.level > 9) {
+    const winAmount = Math.floor(game.betAmount * SUT_RATES[8].rate);
+    user.balance += winAmount;
+    user.winCount++;
+    await user.save();
+    delete activeGames[user.userId];
+
+    if (imgUrl) {
+      try {
+        await sendPhoto(chatId, imgUrl,
+          '⚽ SÚT LẦN 9/9 — JACKPOT!\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🎯 Bạn sút: Ô ' + position + ' (' + positionText[position] + ')\n' +
+          '🧤 Thủ môn: Ô ' + keeper + ' (' + keeperText[keeper] + ')\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🎉 SÚT THÀNH CÔNG 9/9!\n' +
+          '💰 Hệ số: x' + SUT_RATES[8].rate + '\n' +
+          '💵 Nhận: +' + formatMoney(winAmount) + '\n' +
+          '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+        return;
+      } catch (e) {}
+    }
+
+    return sendMessage(chatId,
+      '🎉 JACKPOT! SÚT 9/9!\n' +
+      '💰 Nhận: +' + formatMoney(winAmount) + '\n' +
+      '💵 Số dư: ' + formatMoney(user.balance) + '\n\n' + DEV);
+  }
+
+  const nextRate = SUT_RATES[game.level - 1].rate;
+  const currentAmount = Math.floor(game.betAmount * nextRate);
+
+  if (imgUrl) {
+    try {
+      await sendPhoto(chatId, imgUrl,
+        '⚽ SÚT LẦN ' + currentLevel + '/9\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '🎯 Bạn sút: Ô ' + position + ' (' + positionText[position] + ')\n' +
+        '🧤 Thủ môn: Ô ' + keeper + ' (' + keeperText[keeper] + ')\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '✅ VÀO!\n' +
+        '💰 Tiền hiện tại: ' + formatMoney(currentAmount) + ' (x' + nextRate + ')\n' +
+        '👉 Gõ .tiep để sút tiếp (lần ' + game.level + ')\n' +
+        '👉 Gõ .lay để nhận tiền\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        DEV);
+      return;
+    } catch (e) {}
+  }
+
+  return sendMessage(chatId,
+    '✅ VÀO! Lần ' + currentLevel + '/9\n' +
+    '💰 Tiền: ' + formatMoney(currentAmount) + ' (x' + nextRate + ')\n' +
+    '👉 .tiep để sút tiếp\n' +
+    '👉 .lay để nhận tiền\n\n' + DEV);
+    }
 function extractCommand(text) {
   const lower = text.toLowerCase().trim();
   const match = lower.match(/\.([a-z0-9]+)/);
@@ -628,6 +774,140 @@ async function handleMessage(update) {
       '2. Nội dung CK: ID của bạn\n' +
       '   (Gõ .id để xem ID)\n' +
       '3. Admin sẽ cộng tiền cho bạn trong vòng 0-120 phút\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      DEV);
+  }
+
+  // ===== .sut — BẮT ĐẦU SÚT BÓNG =====
+  if (cmd === '.sut' || cmd === '.sutbong') {
+    if (activeGames[senderId]) {
+      return sendMessage(chatId,
+        '⚠️ Bạn đang có game sút đang chơi!\n\n' +
+        '👉 Gõ .tiep để sút tiếp\n' +
+        '👉 Gõ .lay để nhận tiền\n' +
+        '👉 Gõ .huy để hủy game\n\n' +
+        DEV);
+    }
+
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+
+    if (parts.length < 2) {
+      return sendMessage(chatId,
+        '⚽ SÚT BÓNG LIÊN TIẾP\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '📌 Cú pháp:\n' +
+        '.sut [ô 1-3] [số tiền]\n\n' +
+        '📖 Ví dụ:\n' +
+        '.sut 2 10000\n\n' +
+        '🎯 Ô sút:\n' +
+        '• 1 = Trái\n' +
+        '• 2 = Giữa\n' +
+        '• 3 = Phải\n\n' +
+        '🏆 HỆ SỐ:\n' +
+        '• Lần 1: x1.2\n' +
+        '• Lần 2: x1.6\n' +
+        '• Lần 3: x2.0\n' +
+        '• Lần 4: x2.5\n' +
+        '• Lần 5: x3.0\n' +
+        '• Lần 6: x4.0\n' +
+        '• Lần 7: x5.0\n' +
+        '• Lần 8: x7.0\n' +
+        '• Lần 9: x11.7 (JACKPOT)\n\n' +
+        '💰 Cược: 1.000 — 50.000 VNĐ\n' +
+        '⚠️ BỊ CHẶN → mất hết\n' +
+        '💡 Có thể cắt lời bất cứ lúc nào (.lay)\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        DEV);
+    }
+
+    const position = parseInt(parts[0], 10);
+    const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
+
+    if (position < 1 || position > 3 || isNaN(position)) {
+      return sendMessage(chatId, '❌ Ô sút phải là 1, 2 hoặc 3!\n\n1 = Trái | 2 = Giữa | 3 = Phải\n\n' + DEV);
+    }
+    if (isNaN(amount) || amount <= 0) {
+      return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    }
+    if (amount < MIN_BET) {
+      return sendMessage(chatId, '❌ Cược tối thiểu: ' + formatMoney(MIN_BET) + '\n\n' + DEV);
+    }
+    if (amount > MAX_BET) {
+      return sendMessage(chatId, '❌ Cược tối đa: ' + formatMoney(MAX_BET) + '\n\n' + DEV);
+    }
+    if (user.balance < amount) {
+      return sendMessage(chatId, '❌ Không đủ tiền!\n\n💵 Số dư: ' + formatMoney(user.balance) + '\n💸 Cần: ' + formatMoney(amount) + '\n\n' + DEV);
+    }
+
+    user.balance -= amount;
+    user.totalBet += amount;
+    await user.save();
+
+    activeGames[senderId] = {
+      betAmount: amount,
+      level: 1,
+      startTime: Date.now()
+    };
+
+    await playShot(chatId, user, position);
+    return;
+  }
+
+  // ===== .tiep — SÚT TIẾP =====
+  if (cmd === '.tiep' || cmd === '.tieptuc') {
+    const game = activeGames[senderId];
+    if (!game) {
+      return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
+    }
+    const position = Math.floor(Math.random() * 3) + 1;
+    await playShot(chatId, user, position);
+    return;
+  }
+
+  // ===== .lay — NHẬN TIỀN =====
+  if (cmd === '.lay' || cmd === '.laytien' || cmd === '.cashout') {
+    const game = activeGames[senderId];
+    if (!game) {
+      return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
+    }
+
+    const currentLevel = game.level - 1;
+    const rate = SUT_RATES[currentLevel - 1].rate;
+    const winAmount = Math.floor(game.betAmount * rate);
+
+    user.balance += winAmount;
+    user.winCount++;
+    await user.save();
+    delete activeGames[senderId];
+
+    return sendMessage(chatId,
+      '🎉 BẠN ĐÃ LẤY TIỀN!\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🏆 Sút thành công: ' + currentLevel + ' lần\n' +
+      '💰 Hệ số: x' + rate + '\n' +
+      '💵 Nhận: +' + formatMoney(winAmount) + '\n' +
+      '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      DEV);
+  }
+
+  // ===== .huy — HỦY GAME =====
+  if (cmd === '.huy' || cmd === '.huygame') {
+    const game = activeGames[senderId];
+    if (!game) {
+      return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\n' + DEV);
+    }
+
+    delete activeGames[senderId];
+    user.loseCount++;
+    await user.save();
+
+    return sendMessage(chatId,
+      '❌ ĐÃ HỦY GAME\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '💸 Mất: ' + formatMoney(game.betAmount) + '\n' +
+      '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
@@ -775,11 +1055,6 @@ async function handleMessage(update) {
     t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
     return sendMessage(chatId, t);
   }
-
-  // ===== TEST GIF =====
-if (cmd === '.testgif') {
-  return sendPhoto(chatId, 'https://i.ibb.co/zVT9Qv5F/44495f4566cd.png', '🎬 Test PNG');
-}
 
   // ===== ADMIN: .duyetrut =====
   if (cmd === '.duyetrut') {
@@ -975,7 +1250,7 @@ if (cmd === '.testgif') {
     }
     return sendMessage(chatId, '✅ ĐÃ CỘNG ' + formatMoney(amount) + '\n👥 Cho ' + allUsers.length + ' người\n\n' + DEV);
   }
-
+  // ===== ADMIN: .danhsach =====
   if (cmd === '.danhsach' || cmd === '.listusers') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const allUsers = await User.find().sort({ createdAt: -1 }).limit(20);
@@ -991,6 +1266,7 @@ if (cmd === '.testgif') {
     return sendMessage(chatId, t);
   }
 
+  // ===== ADMIN: .resetall =====
   if (cmd === '.resetall' || cmd === '.reset') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const allUsers = await User.find();
@@ -1004,6 +1280,7 @@ if (cmd === '.testgif') {
     return sendMessage(chatId, '✅ ĐÃ RESET ' + allUsers.length + ' người\n💰 Số dư: ' + formatMoney(START_BALANCE) + '\n\n' + DEV);
   }
 
+  // ===== ADMIN: .xoauser =====
   if (cmd === '.xoauser' || cmd === '.removeuser') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
@@ -1016,6 +1293,7 @@ if (cmd === '.testgif') {
     return sendMessage(chatId, '🗑️ ĐÃ XÓA\n👤 ' + name + '\n🆔 ' + found.id + '\n\n' + DEV);
   }
 
+  // ===== ADMIN: .thongbao =====
   if (cmd === '.thongbao' || cmd === '.broadcast') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const keyword = cmd === '.thongbao' ? '.thongbao' : '.broadcast';
@@ -1032,7 +1310,7 @@ if (cmd === '.testgif') {
     return sendMessage(chatId, '✅ ĐÃ GỬI THÔNG BÁO\n👥 Cho ' + success + '/' + allUsers.length + ' người\n\n' + DEV);
   }
 
-  // ===== LỆNH CƯỢC =====
+  // ===== LỆNH CƯỢC TÀI XỈU =====
   if (cmd === '.tx') {
     const lowerText = text.toLowerCase();
     const txIndex = lowerText.indexOf('.tx');
@@ -1046,19 +1324,23 @@ if (cmd === '.testgif') {
     return handleBet(chatId, user, choice, amount);
   }
 
+  // ===== LỆNH .dice =====
   if (cmd === '.dice') {
     const n = Math.floor(Math.random() * 6) + 1;
     return sendMessage(chatId, '🎲 Bạn lắc được: ' + DICE_EMOJI[n - 1] + ' (' + n + ')\n\n' + DEV);
   }
 
+  // ===== LỆNH .coin =====
   if (cmd === '.coin') {
     const result = Math.random() < 0.5 ? 'Sấp' : 'Ngửa';
     return sendMessage(chatId, '🪙 Kết quả: ' + result + '\n\n' + DEV);
   }
 
+  // ===== LỆNH KHÔNG HỢP LỆ =====
   return sendMessage(chatId, '❓ Lệnh không hợp lệ!\n\nGõ .trogiup để xem danh sách lệnh\n\n' + DEV);
 }
 
+// ===== WEBHOOK =====
 app.post('/webhook', async function(req, res) {
   res.json({ ok: true });
   try {
@@ -1068,10 +1350,12 @@ app.post('/webhook', async function(req, res) {
   }
 });
 
+// ===== HEALTH CHECK =====
 app.get('/', function(req, res) {
   res.send('Bot Tài Xỉu OK! | MongoDB | ' + DEV);
 });
 
+// ===== KHỞI ĐỘNG =====
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
   console.log('Bot chạy cổng ' + PORT);

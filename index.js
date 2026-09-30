@@ -18,6 +18,17 @@ const users = {};
 let sessionId = 0;
 let history = [];
 
+// ====== ẢNH XÚC XẮC ĐEN TRẮNG (WIKIMEDIA) ======
+const DICE_IMAGES = {
+  1: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Dice-1-b.svg/200px-Dice-1-b.svg.png',
+  2: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Dice-2-b.svg/200px-Dice-2-b.svg.png',
+  3: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Dice-3-b.svg/200px-Dice-3-b.svg.png',
+  4: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Dice-4-b.svg/200px-Dice-4-b.svg.png',
+  5: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Dice-5-b.svg/200px-Dice-5-b.svg.png',
+  6: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Dice-6-b.svg/200px-Dice-6-b.svg.png'
+};
+
+// ====== EMOJI XÚC XẮC ======
 const DICE_EMOJI = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
 // ====== GỬI TIN NHẮN ======
@@ -45,48 +56,6 @@ async function sendPhoto(chatId, photoUrl, caption) {
   } catch (err) {
     console.error('Lỗi gửi ảnh:', err.response ? err.response.data : err.message);
   }
-}
-
-// ====== TẠO ẢNH 3 XÚC XẮC KHÔNG SỐ ======
-function createDiceImageUrl(dice) {
-  const e1 = DICE_EMOJI[dice[0] - 1];
-  const e2 = DICE_EMOJI[dice[1] - 1];
-  const e3 = DICE_EMOJI[dice[2] - 1];
-
-  // Dùng placehold.co với emoji - có thể hiển thị emoji trắng trên nền tối
-  // Thử cách khác: dùng QuickChart với biểu đồ tròn, tắt datalabel số, chỉ hiện emoji qua legend
-
-  const chartConfig = {
-    type: 'doughnut',
-    data: {
-      labels: [e1, e2, e3],
-      datasets: [{
-        data: [1, 1, 1],
-        backgroundColor: ['#2C3E50', '#2C3E50', '#2C3E50'],
-        borderColor: '#0f0f1e',
-        borderWidth: 8
-      }]
-    },
-    options: {
-      legend: {
-        display: false
-      },
-      plugins: {
-        datalabels: {
-          display: false
-        }
-      },
-      tooltips: { enabled: false }
-    }
-  };
-
-  // Thêm emoji qua URL parameter để hiển thị to ở giữa
-  // Dùng quickchart với title chứa emoji to
-  const url = 'https://quickchart.io/chart?w=700&h=400&bkg=%230f0f1e&c=' +
-    encodeURIComponent(JSON.stringify(chartConfig)) +
-    '&title=' + encodeURIComponent(e1 + '   ' + e2 + '   ' + e3) +
-    '&titleFontSize=120&titleColor=ffffff';
-  return url;
 }
 
 // ====== XÚC XẮC ======
@@ -233,6 +202,7 @@ function getDailyText(user) {
     DEV;
 }
 
+// ====== XỬ LÝ CƯỢC ======
 async function handleBet(chatId, user, choice, amount) {
   const choiceLower = (choice || '').toLowerCase();
   let validChoice = null;
@@ -286,8 +256,10 @@ async function handleBet(chatId, user, choice, amount) {
   const sessionStr = '#' + sid;
   const isWin = validChoice === game.result;
 
-  const diceImageUrl = createDiceImageUrl(game.dice);
-  await sendPhoto(chatId, diceImageUrl, '🎲 Phiên ' + sessionStr);
+  // ===== GỬI 3 ẢNH XÚC XẮC =====
+  await sendPhoto(chatId, DICE_IMAGES[game.dice[0]], '🎲 Xúc xắc 1: ' + game.dice[0]);
+  await sendPhoto(chatId, DICE_IMAGES[game.dice[1]], '🎲 Xúc xắc 2: ' + game.dice[1]);
+  await sendPhoto(chatId, DICE_IMAGES[game.dice[2]], '🎲 Xúc xắc 3: ' + game.dice[2]);
 
   if (isWin) {
     const winAmount = amount * 2;

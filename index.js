@@ -18,18 +18,77 @@ const users = {};
 let sessionId = 0;
 let history = [];
 
+// ====== GỬI TIN NHẮN ======
 async function sendMessage(chatId, text) {
   try {
     await axios.post(`${BASE_URL}/sendMessage`, {
       chat_id: chatId,
       text: text
     });
-    console.log('Đã gửi tới ' + chatId);
+    console.log('Đã gửi tin tới ' + chatId);
   } catch (err) {
-    console.error('Lỗi gửi:', err.response ? err.response.data : err.message);
+    console.error('Lỗi gửi tin:', err.response ? err.response.data : err.message);
   }
 }
 
+// ====== GỬI ẢNH ======
+async function sendPhoto(chatId, photoUrl, caption) {
+  try {
+    await axios.post(`${BASE_URL}/sendPhoto`, {
+      chat_id: chatId,
+      photo: photoUrl,
+      caption: caption || ''
+    });
+    console.log('Đã gửi ảnh tới ' + chatId);
+  } catch (err) {
+    console.error('Lỗi gửi ảnh:', err.response ? err.response.data : err.message);
+  }
+}
+
+// ====== TẠO ẢNH XÚC XẮC QUICKCHART ======
+function createDiceImageUrl(dice, total, result) {
+  const labels = [
+    'XX1: ' + dice[0],
+    'XX2: ' + dice[1],
+    'XX3: ' + dice[2]
+  ];
+  const chartConfig = {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: dice,
+        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
+      }]
+    },
+    options: {
+      title: {
+        display: true,
+        text: 'TỔNG: ' + total + ' - ' + (result === 'Tài' ? 'TÀI' : 'XỈU'),
+        fontColor: '#ffffff',
+        fontSize: 24
+      },
+      legend: {
+        labels: {
+          fontColor: '#ffffff',
+          fontSize: 18
+        }
+      },
+      plugins: {
+        datalabels: {
+          color: '#ffffff',
+          font: { size: 22, weight: 'bold' },
+          formatter: function(value) { return value; }
+        }
+      }
+    }
+  };
+  const url = 'https://quickchart.io/chart?w=600&h=400&bkg=%231a1a2e&c=' +
+    encodeURIComponent(JSON.stringify(chartConfig));
+  return url;
+}
+
+// ====== XÚC XẮC ======
 function rollDice() {
   return [
     Math.floor(Math.random() * 6) + 1,
@@ -45,6 +104,7 @@ function playTaiXiu() {
   return { dice: dice, total: total, result: result };
 }
 
+// ====== USER ======
 function getUser(userId, name) {
   if (!users[userId]) {
     users[userId] = {
@@ -65,6 +125,7 @@ function formatMoney(amount) {
   return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' VND';
 }
 
+// ====== TEXT LỆNH ======
 function getHelpText() {
   return '🎰 BOT TÀI XỈU 🎰\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
@@ -172,6 +233,7 @@ function getDailyText(user) {
     DEV;
 }
 
+// ====== XỬ LÝ CƯỢC ======
 async function handleBet(chatId, user, choice, amount) {
   const choiceLower = (choice || '').toLowerCase();
   let validChoice = null;
@@ -221,6 +283,10 @@ async function handleBet(chatId, user, choice, amount) {
   });
   if (history.length > 100) history.shift();
 
+  // ===== GỬI ẢNH XÚC XẮC =====
+  const diceImageUrl = createDiceImageUrl(game.dice, game.total, game.result);
+  await sendPhoto(chatId, diceImageUrl, '🎲 Kết quả xúc xắc phiên #' + ('00000' + sessionId).slice(-5));
+
   const sid = ('00000' + sessionId).slice(-5);
   const sessionStr = '#' + sid;
   const isWin = validChoice === game.result;
@@ -259,6 +325,7 @@ async function handleBet(chatId, user, choice, amount) {
   }
 }
 
+// ====== TÁCH LỆNH ======
 function extractCommand(text) {
   const lower = text.toLowerCase().trim();
   const match = lower.match(/\.([a-z0-9]+)/);
@@ -266,6 +333,7 @@ function extractCommand(text) {
   return '.' + match[1];
 }
 
+// ====== XỬ LÝ TIN NHẮN ======
 async function handleMessage(update) {
   console.log('Nhận update:', JSON.stringify(update, null, 2));
 
@@ -290,7 +358,7 @@ async function handleMessage(update) {
 
   console.log('Command: ' + cmd);
 
-  if (cmd === '.help') {
+  if (cmd === '.help' || cmd === '.start') {
     return sendMessage(chatId, getHelpText());
   }
 
@@ -315,23 +383,24 @@ async function handleMessage(update) {
   }
 
   if (cmd === '.tx') {
-  const lowerText = text.toLowerCase();
-  const txIndex = lowerText.indexOf('.tx');
-  const afterTx = text.substring(txIndex + 3).trim();
-  const parts = afterTx.split(/\s+/);
-  
-  if (parts.length < 2) {
-    return sendMessage(chatId, '❌ Cú pháp: .tx [tài/xỉu] [số tiền]\n\nVí dụ: .tx tài 10000\n\n' + DEV);
-  }
-  
-  const choice = parts[0];
-  const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
-  return handleBet(chatId, user, choice, amount);
+    const lowerText = text.toLowerCase();
+    const txIndex = lowerText.indexOf('.tx');
+    const afterTx = text.substring(txIndex + 3).trim();
+    const parts = afterTx.split(/\s+/);
+
+    if (parts.length < 2) {
+      return sendMessage(chatId, '❌ Cú pháp: .tx [tài/xỉu] [số tiền]\n\nVí dụ: .tx tài 10000\n\n' + DEV);
+    }
+
+    const choice = parts[0];
+    const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
+    return handleBet(chatId, user, choice, amount);
   }
 
   if (cmd === '.dice') {
     const n = Math.floor(Math.random() * 6) + 1;
-    return sendMessage(chatId, '🎲 Bạn lắc được: ' + n + '\n\n' + DEV);
+    const diceEmojis = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+    return sendMessage(chatId, '🎲 Bạn lắc được: ' + diceEmojis[n - 1] + ' (' + n + ')\n\n' + DEV);
   }
 
   if (cmd === '.coin') {
@@ -364,13 +433,10 @@ async function handleMessage(update) {
     return sendMessage(chatId, answer + '\n\n' + DEV);
   }
 
-  if (cmd === '.start') {
-    return sendMessage(chatId, getHelpText());
-  }
-
   return sendMessage(chatId, '❓ Lệnh không hợp lệ!\n\nGõ .help để xem danh sách lệnh\n\n' + DEV);
 }
 
+// ====== WEBHOOK ======
 app.post('/webhook', async function(req, res) {
   res.json({ ok: true });
   try {
@@ -380,10 +446,12 @@ app.post('/webhook', async function(req, res) {
   }
 });
 
+// ====== HEALTH CHECK ======
 app.get('/', function(req, res) {
   res.send('Bot Tài Xỉu OK! | ' + DEV);
 });
 
+// ====== KHỞI ĐỘNG ======
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
   console.log('Bot chạy port ' + PORT);

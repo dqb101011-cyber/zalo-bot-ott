@@ -9,22 +9,39 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const BASE_URL = `https://bot-api.zaloplatforms.com/bot${BOT_TOKEN}`;
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(function(id) { return id.trim(); });
+const NOTIFY_GROUP_ID = process.env.NOTIFY_GROUP_ID || '';
 
 const DEV = 'Dev by Dương Quốc Bảo';
 const START_BALANCE = 0;
 const MIN_BET = 1000;
 const MAX_BET = 50000;
-const MIN_WITHDRAW = 50000;
+const MIN_WITHDRAW = 10000;
 const MAX_WITHDRAW = 5000000;
 
-let sessionId = 0;
+const WITHDRAW_IMAGES = {
+  10000: 'https://i.ibb.co/rGYZJty8/Picsart-26-09-30-21-50-55-730.jpg',
+  20000: 'https://i.ibb.co/8DJMWpTB/Picsart-26-09-30-21-51-16-389.jpg',
+  30000: 'https://i.ibb.co/cK8HXd52/Picsart-26-09-30-21-51-30-232.jpg',
+  40000: 'https://i.ibb.co/20kHdWmt/Picsart-26-09-30-21-51-41-661.jpg',
+  50000: 'https://i.ibb.co/kg4ZY7cs/Picsart-26-09-30-21-51-50-029.jpg',
+  60000: 'https://i.ibb.co/7xQTVfqW/Picsart-26-09-30-21-52-00-143.jpg',
+  70000: 'https://i.ibb.co/xSK6qq8b/Picsart-26-09-30-21-52-11-184.jpg',
+  80000: 'https://i.ibb.co/HDcVGY1z/Picsart-26-09-30-21-52-20-957.jpg',
+  90000: 'https://i.ibb.co/TMZ1kP27/Picsart-26-09-30-21-52-29-330.jpg',
+  100000: 'https://i.ibb.co/fVzwYkj0/Picsart-26-09-30-21-52-43-077.jpg'
+};
 
-// ====== KẾT NỐI MONGODB ======
+function getWithdrawImage(amount) {
+  if (WITHDRAW_IMAGES[amount]) return WITHDRAW_IMAGES[amount];
+  const rounded = Math.floor(amount / 10000) * 10000;
+  if (WITHDRAW_IMAGES[rounded]) return WITHDRAW_IMAGES[rounded];
+  return WITHDRAW_IMAGES[100000];
+}
+
 mongoose.connect(MONGODB_URI)
   .then(function() { console.log('✅ Đã kết nối MongoDB'); })
   .catch(function(err) { console.error('❌ Lỗi MongoDB:', err.message); });
 
-// ====== SCHEMA ======
 const userSchema = new mongoose.Schema({
   userId: { type: String, unique: true, required: true },
   name: String,
@@ -395,9 +412,9 @@ function getHelpText() {
     '• .lichsu — Lịch sử phiên\n' +
     '• .toi — Thông tin cá nhân\n' +
     '• .id — Xem ID của bạn\n' +
-    '• .nap — Nạp tiền bằng QR\n' +
+    '• .nap — Nạp tiền\n' +
     '• .rut — Rút tiền\n' +
-    '• .lenhrut — Lịch sử rút tiền\n' +
+    '• .lenhrut — Lịch sử rút\n' +
     '\n🎮 LỆNH KHÁC:\n' +
     '• .dice — Lắc xúc xắc\n' +
     '• .coin — Tung đồng xu\n' +
@@ -555,7 +572,7 @@ async function handleBet(chatId, user, choice, amount) {
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
-}
+    }
 function extractCommand(text) {
   const lower = text.toLowerCase().trim();
   const match = lower.match(/\.([a-z0-9]+)/);
@@ -600,25 +617,22 @@ async function handleMessage(update) {
       DEV);
   }
 
-  // ===== .nap =====
+  // ===== .nap — NẠP TIỀN =====
   if (cmd === '.nap' || cmd === '.naptien') {
     const qrUrl = 'https://i.ibb.co/k2xt1X4H/qr-sepay.png';
     return sendPhoto(chatId, qrUrl,
       '💳 NẠP TIỀN VÀO BOT\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
       '📌 Hướng dẫn:\n' +
-      '1. Quét mã QR trên\n' +
-      '2. Chuyển khoản số tiền muốn nạp\n' +
-      '3. Nội dung CK: NAP + ID của bạn\n' +
+      '1. Chuyển khoản số tiền muốn nạp\n' +
+      '2. Nội dung CK: ID của bạn\n' +
       '   (Gõ .id để xem ID)\n' +
-      '4. Gửi ảnh bill cho Admin\n' +
-      '5. Admin sẽ cộng tiền cho bạn\n' +
-      '\n⚠️ Nạp từ 10.000 VNĐ\n' +
+      '3. Admin sẽ cộng tiền cho bạn trong vòng 0-120 phút\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
 
-  // ===== .rut — Yêu cầu rút tiền =====
+  // ===== .rut — YÊU CẦU RÚT TIỀN =====
   if (cmd === '.rut' || cmd === '.ruttien') {
     const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
     const parts = afterCmd.split(/\s+/);
@@ -630,10 +644,9 @@ async function handleMessage(update) {
         '📌 Cú pháp:\n' +
         '.rut [số tiền] [STK] [ngân hàng] [tên]\n\n' +
         '📖 Ví dụ:\n' +
-        '.rut 50000 123456789 MB Dương Quốc Bảo\n\n' +
-        '⚠️ Tối thiểu: 50.000 VNĐ\n' +
-        '⚠️ Tối đa: 5.000.000 VNĐ\n' +
-        '⚠️ Phí: Miễn phí\n' +
+        '.rut 50000 123456789 MBBANK DUONG QUOC BAO\n\n' +
+        '⚠️ Tối thiểu: 10.000 VNĐ\n' +
+        '⚠️ Số tiền tròn\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
         DEV);
     }
@@ -651,6 +664,9 @@ async function handleMessage(update) {
     }
     if (amount > MAX_WITHDRAW) {
       return sendMessage(chatId, '❌ Rút tối đa: ' + formatMoney(MAX_WITHDRAW) + '\n\n' + DEV);
+    }
+    if (amount % 10000 !== 0) {
+      return sendMessage(chatId, '❌ Số tiền phải là bội số của 10.000 VNĐ!\n\nVD: 10.000, 20.000, 50.000...\n\n' + DEV);
     }
     if (user.balance < amount) {
       return sendMessage(chatId,
@@ -686,6 +702,7 @@ async function handleMessage(update) {
       status: 'pending'
     });
 
+    // Gửi cho ADMIN
     const adminIds = ADMIN_IDS.filter(function(id) { return id; });
     for (let i = 0; i < adminIds.length; i++) {
       try {
@@ -707,6 +724,22 @@ async function handleMessage(update) {
       } catch (e) {}
     }
 
+    // Gửi cho GROUP (nếu có)
+    if (NOTIFY_GROUP_ID) {
+      try {
+        await sendMessage(NOTIFY_GROUP_ID,
+          '💰 YÊU CẦU RÚT TIỀN MỚI\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '👤 ' + senderName + '\n' +
+          '💵 Số tiền: ' + formatMoney(amount) + '\n' +
+          '🏦 Ngân hàng: ' + bank + '\n' +
+          '⏰ Đợi admin duyệt (0-120 phút)\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+      } catch (e) {}
+    }
+
+    // Trả lời user
     return sendMessage(chatId,
       '✅ ĐÃ GỬI YÊU CẦU RÚT TIỀN\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
@@ -716,13 +749,13 @@ async function handleMessage(update) {
       '💳 STK: ' + stk + '\n' +
       '👤 Tên TK: ' + accountName + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
-      '⏰ Đợi admin duyệt (1-24h)\n' +
+      '⏰ Đợi admin duyệt (0-120 phút)\n' +
       '💵 Số dư còn: ' + formatMoney(user.balance) + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
 
-  // ===== .lenhrut — Lịch sử rút =====
+  // ===== .lenhrut — LỊCH SỬ RÚT =====
   if (cmd === '.lenhrut' || cmd === '.lsrut') {
     const userWds = await Withdraw.find({ userId: senderId }).sort({ createdAt: -1 }).limit(10);
 
@@ -746,7 +779,7 @@ async function handleMessage(update) {
     return sendMessage(chatId, t);
   }
 
-  // ===== ADMIN: Duyệt rút =====
+  // ===== ADMIN: .duyetrut — DUYỆT RÚT (gửi ảnh + group) =====
   if (cmd === '.duyetrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
@@ -762,19 +795,36 @@ async function handleMessage(update) {
     wd.status = 'approved';
     await wd.save();
 
+    const imgUrl = getWithdrawImage(wd.amount);
+
+    // Gửi ảnh + caption cho user
     try {
-      await sendMessage(wd.userId,
-        '✅ YÊU CẦU RÚT ĐÃ DUYỆT\n' +
+      await sendPhoto(wd.userId, imgUrl,
+        '✅ RÚT TIỀN THÀNH CÔNG\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
-        '🆔 Mã: ' + wdId + '\n' +
+        '🎉 ' + wd.userName + '\n' +
         '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
         '🏦 Ngân hàng: ' + wd.bank + '\n' +
         '💳 STK: ' + wd.stk + '\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
-        '⏰ Tiền sẽ vào TK trong 1-24h\n' +
+        '⏰ Tiền sẽ vào TK trong 0-120 phút\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
         DEV);
     } catch (e) {}
+
+    // Gửi ảnh + caption cho GROUP
+    if (NOTIFY_GROUP_ID) {
+      try {
+        await sendPhoto(NOTIFY_GROUP_ID, imgUrl,
+          '✅ RÚT TIỀN THÀNH CÔNG\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🎉 ' + wd.userName + '\n' +
+          '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
+          '🏦 Ngân hàng: ' + wd.bank + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+      } catch (e) {}
+    }
 
     return sendMessage(chatId,
       '✅ ĐÃ DUYỆT YÊU CẦU RÚT\n' +
@@ -786,7 +836,7 @@ async function handleMessage(update) {
       DEV);
   }
 
-  // ===== ADMIN: Hủy rút =====
+  // ===== ADMIN: .huyrut — HỦY RÚT =====
   if (cmd === '.huyrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
@@ -820,6 +870,20 @@ async function handleMessage(update) {
       } catch (e) {}
     }
 
+    // Gửi text cho GROUP
+    if (NOTIFY_GROUP_ID) {
+      try {
+        await sendMessage(NOTIFY_GROUP_ID,
+          '❌ YÊU CẦU RÚT ĐÃ HỦY\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '👤 ' + wd.userName + '\n' +
+          '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
+          '💰 Đã hoàn lại cho user\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+      } catch (e) {}
+    }
+
     return sendMessage(chatId,
       '❌ ĐÃ HỦY YÊU CẦU RÚT\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
@@ -830,7 +894,7 @@ async function handleMessage(update) {
       DEV);
   }
 
-  // ===== ADMIN: DS rút =====
+  // ===== ADMIN: .dsrut — DS RÚT ĐANG CHỜ =====
   if (cmd === '.dsrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
     const pendingWds = await Withdraw.find({ status: 'pending' }).sort({ createdAt: -1 });
@@ -854,7 +918,7 @@ async function handleMessage(update) {
     return sendMessage(chatId, t);
   }
 
-  // ===== LỆNH ADMIN khác =====
+  // ===== ADMIN khác =====
 
   if (cmd === '.congtien' || cmd === '.addmoney') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);

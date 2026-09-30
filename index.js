@@ -607,12 +607,29 @@ async function handleBet(chatId, user, choice, amount) {
   }
 }
 
-// ===== HÀM SÚT BÓNG =====
-async function playShot(chatId, user, position) {
-  const game = activeGames[user.userId];
+// ===== .tiep — SÚT TIẾP =====
+if (cmd === '.tiep' || cmd === '.tieptuc') {
+  const game = activeGames[senderId];
   if (!game) {
-    return sendMessage(chatId, '❌ Không có game đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
+    return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
   }
+  
+  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+  const parts = afterCmd.split(/\s+/);
+  
+  let position;
+  if (parts.length >= 1 && parts[0]) {
+    position = parseInt(parts[0], 10);
+    if (position < 1 || position > 3 || isNaN(position)) {
+      return sendMessage(chatId, '❌ Ô sút phải là 1, 2 hoặc 3!\n\n1 = Trái | 2 = Giữa | 3 = Phải\n\n' + DEV);
+    }
+  } else {
+    position = Math.floor(Math.random() * 3) + 1;
+  }
+  
+  await playShot(chatId, user, position);
+  return;
+}
 
   const positionNames = { 1: 'trai', 2: 'giua', 3: 'phai' };
   const positionText = { 1: 'Trái', 2: 'Giữa', 3: 'Phải' };

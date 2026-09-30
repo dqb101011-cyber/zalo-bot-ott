@@ -256,13 +256,8 @@ function findUser(query) {
 
 async function sendMessage(chatId, text, replyToMessageId) {
   try {
-    const payload = {
-      chat_id: chatId,
-      text: text
-    };
-    if (replyToMessageId) {
-      payload.reply_to_message_id = replyToMessageId;
-    }
+    const payload = { chat_id: chatId, text: text };
+    if (replyToMessageId) payload.reply_to_message_id = replyToMessageId;
     await axios.post(`${BASE_URL}/sendMessage`, payload);
     console.log('Đã gửi tin tới ' + chatId);
   } catch (err) {
@@ -272,14 +267,8 @@ async function sendMessage(chatId, text, replyToMessageId) {
 
 async function sendPhoto(chatId, photoUrl, caption, replyToMessageId) {
   try {
-    const payload = {
-      chat_id: chatId,
-      photo: photoUrl,
-      caption: caption || ''
-    };
-    if (replyToMessageId) {
-      payload.reply_to_message_id = replyToMessageId;
-    }
+    const payload = { chat_id: chatId, photo: photoUrl, caption: caption || '' };
+    if (replyToMessageId) payload.reply_to_message_id = replyToMessageId;
     await axios.post(`${BASE_URL}/sendPhoto`, payload);
     console.log('Đã gửi ảnh tới ' + chatId);
   } catch (err) {
@@ -455,7 +444,7 @@ async function handleBet(chatId, user, choice, amount, messageId) {
 
   const diceKey = game.dice[0] + '-' + game.dice[1] + '-' + game.dice[2];
   const imageUrl = DICE_IMAGES[diceKey];
-  
+
   if (imageUrl) {
     try {
       await sendPhoto(chatId, imageUrl, '🎲 Phiên ' + sessionStr, messageId);
@@ -468,7 +457,6 @@ async function handleBet(chatId, user, choice, amount, messageId) {
     const winAmount = amount * 2;
     user.balance += winAmount;
     user.winCount++;
-
     return sendMessage(chatId, '🎰 PHIÊN ' + sessionStr + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
       '🎲 Xúc xắc: ' + diceStr + '\n' +
@@ -524,14 +512,12 @@ async function handleMessage(update) {
   const cmd = extractCommand(text);
   if (!cmd) return;
 
-  // ===== LỆNH USER =====
   if (cmd === '.trogiup' || cmd === '.help' || cmd === '.start') return sendMessage(chatId, getHelpText(), messageId);
   if (cmd === '.sodu' || cmd === '.bal' || cmd === '.balance') return sendMessage(chatId, getBalText(user), messageId);
   if (cmd === '.toi' || cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user, senderId), messageId);
   if (cmd === '.bxh' || cmd === '.top') return sendMessage(chatId, getTopText(), messageId);
   if (cmd === '.lichsu' || cmd === '.history' || cmd === '.ls') return sendMessage(chatId, getHistoryText(), messageId);
 
-  // ===== LỆNH .nap — NẠP TIỀN =====
   if (cmd === '.nap' || cmd === '.naptien') {
     const qrUrl = 'https://i.ibb.co/k2xt1X4H/qr-sepay.png';
     return sendPhoto(chatId, qrUrl,
@@ -548,8 +534,6 @@ async function handleMessage(update) {
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV, messageId);
   }
-
-  // ===== LỆNH ADMIN =====
 
   if (cmd === '.congtien' || cmd === '.addmoney') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV, messageId);
@@ -660,7 +644,6 @@ async function handleMessage(update) {
     return sendMessage(chatId, '✅ ĐÃ GỬI THÔNG BÁO\n👥 Cho ' + success + '/' + keys.length + ' người\n\n' + DEV, messageId);
   }
 
-  // ===== LỆNH CƯỢC =====
   if (cmd === '.tx') {
     const lowerText = text.toLowerCase();
     const txIndex = lowerText.indexOf('.tx');

@@ -18,7 +18,6 @@ const users = {};
 let sessionId = 0;
 let history = [];
 
-// ====== EMOJI XÚC XẮC ======
 const DICE_EMOJI = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
 // ====== GỬI TIN NHẮN ======
@@ -48,54 +47,40 @@ async function sendPhoto(chatId, photoUrl, caption) {
   }
 }
 
-// ====== TẠO ẢNH XÚC XẮC TO BẰNG QUICKCHART ======
-function createDiceImageUrl(dice, total, result) {
+// ====== TẠO ẢNH XÚC XẮC KHÔNG BIỂU ĐỒ ======
+function createDiceImageUrl(dice, total, result, sessionStr) {
   const e1 = DICE_EMOJI[dice[0] - 1];
   const e2 = DICE_EMOJI[dice[1] - 1];
   const e3 = DICE_EMOJI[dice[2] - 1];
+  const resultText = result === 'Tài' ? 'TÀI' : 'XỈU';
+  const resultColor = result === 'Tài' ? '#E74C3C' : '#3498DB';
 
-  // Dùng biểu đồ doughnut để hiển thị 3 emoji to ở giữa
+  // Dùng QuickChart với radialGauge ẩn + custom text
   const chartConfig = {
-    type: 'doughnut',
+    type: 'radialGauge',
     data: {
-      labels: [e1, e2, e3],
       datasets: [{
-        data: [1, 1, 1],
-        backgroundColor: ['#E74C3C', '#3498DB', '#F1C40F'],
-        borderColor: '#0f0f1e',
-        borderWidth: 6
+        data: [1],
+        backgroundColor: '#0f0f1e',
+        borderWidth: 0
       }]
     },
     options: {
-      title: {
-        display: true,
-        text: 'TỔNG: ' + total + ' - ' + (result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU'),
-        fontColor: '#ffffff',
-        fontSize: 28,
-        padding: 20
-      },
-      legend: {
-        position: 'bottom',
-        labels: {
-          fontColor: '#ffffff',
-          fontSize: 40,
-          padding: 20,
-          usePointStyle: false
-        }
-      },
+      centerPercentage: 100,
+      rotation: 0,
+      circumference: 360,
       plugins: {
-        datalabels: {
-          color: '#ffffff',
-          font: { size: 60, weight: 'bold' },
-          formatter: function(value, context) {
-            return context.chart.data.labels[context.dataIndex];
-          }
+        datalabels: { display: false },
+        doughnutlabel: {
+          labels: [
+            { text: e1 + '  ' + e2 + '  ' + e3, font: { size: 100, weight: 'bold' }, color: '#ffffff' }
+          ]
         }
       }
     }
   };
 
-  const url = 'https://quickchart.io/chart?w=700&h=500&bkg=%230f0f1e&c=' +
+  const url = 'https://quickchart.io/chart?w=700&h=400&bkg=%230f0f1e&c=' +
     encodeURIComponent(JSON.stringify(chartConfig));
   return url;
 }
@@ -295,13 +280,13 @@ async function handleBet(chatId, user, choice, amount) {
   });
   if (history.length > 100) history.shift();
 
-  // ===== GỬI ẢNH XÚC XẮC TO =====
   const sid = ('00000' + sessionId).slice(-5);
-  const diceImageUrl = createDiceImageUrl(game.dice, game.total, game.result);
-  await sendPhoto(chatId, diceImageUrl, '🎲 Phiên #' + sid);
-
   const sessionStr = '#' + sid;
   const isWin = validChoice === game.result;
+
+  // ===== GỬI ẢNH XÚC XẮC =====
+  const diceImageUrl = createDiceImageUrl(game.dice, game.total, game.result, sessionStr);
+  await sendPhoto(chatId, diceImageUrl, '🎲 Phiên ' + sessionStr);
 
   if (isWin) {
     const winAmount = amount * 2;
@@ -337,7 +322,6 @@ async function handleBet(chatId, user, choice, amount) {
   }
 }
 
-// ====== TÁCH LỆNH ======
 function extractCommand(text) {
   const lower = text.toLowerCase().trim();
   const match = lower.match(/\.([a-z0-9]+)/);
@@ -345,7 +329,6 @@ function extractCommand(text) {
   return '.' + match[1];
 }
 
-// ====== XỬ LÝ TIN NHẮN ======
 async function handleMessage(update) {
   console.log('Nhận update:', JSON.stringify(update, null, 2));
 
@@ -447,7 +430,6 @@ async function handleMessage(update) {
   return sendMessage(chatId, '❓ Lệnh không hợp lệ!\n\nGõ .help để xem danh sách lệnh\n\n' + DEV);
 }
 
-// ====== WEBHOOK ======
 app.post('/webhook', async function(req, res) {
   res.json({ ok: true });
   try {
@@ -457,12 +439,10 @@ app.post('/webhook', async function(req, res) {
   }
 });
 
-// ====== HEALTH CHECK ======
 app.get('/', function(req, res) {
   res.send('Bot Tài Xỉu OK! | ' + DEV);
 });
 
-// ====== KHỞI ĐỘNG ======
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
   console.log('Bot chạy port ' + PORT);

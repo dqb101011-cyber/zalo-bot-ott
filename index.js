@@ -47,41 +47,45 @@ async function sendPhoto(chatId, photoUrl, caption) {
   }
 }
 
-// ====== TẠO ẢNH XÚC XẮC KHÔNG BIỂU ĐỒ ======
-function createDiceImageUrl(dice, total, result, sessionStr) {
+// ====== TẠO ẢNH 3 XÚC XẮC KHÔNG SỐ ======
+function createDiceImageUrl(dice) {
   const e1 = DICE_EMOJI[dice[0] - 1];
   const e2 = DICE_EMOJI[dice[1] - 1];
   const e3 = DICE_EMOJI[dice[2] - 1];
-  const resultText = result === 'Tài' ? 'TÀI' : 'XỈU';
-  const resultColor = result === 'Tài' ? '#E74C3C' : '#3498DB';
 
-  // Dùng QuickChart với radialGauge ẩn + custom text
+  // Dùng placehold.co với emoji - có thể hiển thị emoji trắng trên nền tối
+  // Thử cách khác: dùng QuickChart với biểu đồ tròn, tắt datalabel số, chỉ hiện emoji qua legend
+
   const chartConfig = {
-    type: 'radialGauge',
+    type: 'doughnut',
     data: {
+      labels: [e1, e2, e3],
       datasets: [{
-        data: [1],
-        backgroundColor: '#0f0f1e',
-        borderWidth: 0
+        data: [1, 1, 1],
+        backgroundColor: ['#2C3E50', '#2C3E50', '#2C3E50'],
+        borderColor: '#0f0f1e',
+        borderWidth: 8
       }]
     },
     options: {
-      centerPercentage: 100,
-      rotation: 0,
-      circumference: 360,
+      legend: {
+        display: false
+      },
       plugins: {
-        datalabels: { display: false },
-        doughnutlabel: {
-          labels: [
-            { text: e1 + '  ' + e2 + '  ' + e3, font: { size: 100, weight: 'bold' }, color: '#ffffff' }
-          ]
+        datalabels: {
+          display: false
         }
-      }
+      },
+      tooltips: { enabled: false }
     }
   };
 
+  // Thêm emoji qua URL parameter để hiển thị to ở giữa
+  // Dùng quickchart với title chứa emoji to
   const url = 'https://quickchart.io/chart?w=700&h=400&bkg=%230f0f1e&c=' +
-    encodeURIComponent(JSON.stringify(chartConfig));
+    encodeURIComponent(JSON.stringify(chartConfig)) +
+    '&title=' + encodeURIComponent(e1 + '   ' + e2 + '   ' + e3) +
+    '&titleFontSize=120&titleColor=ffffff';
   return url;
 }
 
@@ -122,7 +126,6 @@ function formatMoney(amount) {
   return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' VND';
 }
 
-// ====== TEXT LỆNH ======
 function getHelpText() {
   return '🎰 BOT TÀI XỈU 🎰\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
@@ -230,7 +233,6 @@ function getDailyText(user) {
     DEV;
 }
 
-// ====== XỬ LÝ CƯỢC ======
 async function handleBet(chatId, user, choice, amount) {
   const choiceLower = (choice || '').toLowerCase();
   let validChoice = null;
@@ -284,8 +286,7 @@ async function handleBet(chatId, user, choice, amount) {
   const sessionStr = '#' + sid;
   const isWin = validChoice === game.result;
 
-  // ===== GỬI ẢNH XÚC XẮC =====
-  const diceImageUrl = createDiceImageUrl(game.dice, game.total, game.result, sessionStr);
+  const diceImageUrl = createDiceImageUrl(game.dice);
   await sendPhoto(chatId, diceImageUrl, '🎲 Phiên ' + sessionStr);
 
   if (isWin) {
@@ -346,47 +347,24 @@ async function handleMessage(update) {
 
   const user = getUser(senderId, senderName);
 
-  console.log('ChatId: ' + chatId + ' | Type: ' + chatType + ' | User: ' + senderName + ' | Text: ' + text);
-
   const cmd = extractCommand(text);
   if (!cmd) return;
 
-  console.log('Command: ' + cmd);
-
-  if (cmd === '.help' || cmd === '.start') {
-    return sendMessage(chatId, getHelpText());
-  }
-
-  if (cmd === '.bal' || cmd === '.balance' || cmd === '.money') {
-    return sendMessage(chatId, getBalText(user));
-  }
-
-  if (cmd === '.me' || cmd === '.info') {
-    return sendMessage(chatId, getMeText(user));
-  }
-
-  if (cmd === '.daily' || cmd === '.diemdanh') {
-    return sendMessage(chatId, getDailyText(user));
-  }
-
-  if (cmd === '.top' || cmd === '.bxh') {
-    return sendMessage(chatId, getTopText());
-  }
-
-  if (cmd === '.history' || cmd === '.ls') {
-    return sendMessage(chatId, getHistoryText());
-  }
+  if (cmd === '.help' || cmd === '.start') return sendMessage(chatId, getHelpText());
+  if (cmd === '.bal' || cmd === '.balance' || cmd === '.money') return sendMessage(chatId, getBalText(user));
+  if (cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user));
+  if (cmd === '.daily' || cmd === '.diemdanh') return sendMessage(chatId, getDailyText(user));
+  if (cmd === '.top' || cmd === '.bxh') return sendMessage(chatId, getTopText());
+  if (cmd === '.history' || cmd === '.ls') return sendMessage(chatId, getHistoryText());
 
   if (cmd === '.tx') {
     const lowerText = text.toLowerCase();
     const txIndex = lowerText.indexOf('.tx');
     const afterTx = text.substring(txIndex + 3).trim();
     const parts = afterTx.split(/\s+/);
-
     if (parts.length < 2) {
       return sendMessage(chatId, '❌ Cú pháp: .tx [tài/xỉu] [số tiền]\n\nVí dụ: .tx tài 10000\n\n' + DEV);
     }
-
     const choice = parts[0];
     const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
     return handleBet(chatId, user, choice, amount);

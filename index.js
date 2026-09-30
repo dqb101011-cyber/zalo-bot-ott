@@ -18,6 +18,9 @@ const users = {};
 let sessionId = 0;
 let history = [];
 
+// ====== EMOJI XÚC XẮC ======
+const DICE_EMOJI = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
 // ====== GỬI TIN NHẮN ======
 async function sendMessage(chatId, text) {
   try {
@@ -45,45 +48,54 @@ async function sendPhoto(chatId, photoUrl, caption) {
   }
 }
 
-// ====== TẠO ẢNH XÚC XẮC QUICKCHART ======
+// ====== TẠO ẢNH XÚC XẮC TO BẰNG QUICKCHART ======
 function createDiceImageUrl(dice, total, result) {
-  const labels = [
-    'XX1: ' + dice[0],
-    'XX2: ' + dice[1],
-    'XX3: ' + dice[2]
-  ];
+  const e1 = DICE_EMOJI[dice[0] - 1];
+  const e2 = DICE_EMOJI[dice[1] - 1];
+  const e3 = DICE_EMOJI[dice[2] - 1];
+
+  // Dùng biểu đồ doughnut để hiển thị 3 emoji to ở giữa
   const chartConfig = {
     type: 'doughnut',
     data: {
-      labels: labels,
+      labels: [e1, e2, e3],
       datasets: [{
-        data: dice,
-        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
+        data: [1, 1, 1],
+        backgroundColor: ['#E74C3C', '#3498DB', '#F1C40F'],
+        borderColor: '#0f0f1e',
+        borderWidth: 6
       }]
     },
     options: {
       title: {
         display: true,
-        text: 'TỔNG: ' + total + ' - ' + (result === 'Tài' ? 'TÀI' : 'XỈU'),
+        text: 'TỔNG: ' + total + ' - ' + (result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU'),
         fontColor: '#ffffff',
-        fontSize: 24
+        fontSize: 28,
+        padding: 20
       },
       legend: {
+        position: 'bottom',
         labels: {
           fontColor: '#ffffff',
-          fontSize: 18
+          fontSize: 40,
+          padding: 20,
+          usePointStyle: false
         }
       },
       plugins: {
         datalabels: {
           color: '#ffffff',
-          font: { size: 22, weight: 'bold' },
-          formatter: function(value) { return value; }
+          font: { size: 60, weight: 'bold' },
+          formatter: function(value, context) {
+            return context.chart.data.labels[context.dataIndex];
+          }
         }
       }
     }
   };
-  const url = 'https://quickchart.io/chart?w=600&h=400&bkg=%231a1a2e&c=' +
+
+  const url = 'https://quickchart.io/chart?w=700&h=500&bkg=%230f0f1e&c=' +
     encodeURIComponent(JSON.stringify(chartConfig));
   return url;
 }
@@ -268,7 +280,7 @@ async function handleBet(chatId, user, choice, amount) {
 
   sessionId++;
   const game = playTaiXiu();
-  const diceStr = game.dice[0] + ' + ' + game.dice[1] + ' + ' + game.dice[2];
+  const diceStr = DICE_EMOJI[game.dice[0] - 1] + ' ' + DICE_EMOJI[game.dice[1] - 1] + ' ' + DICE_EMOJI[game.dice[2] - 1];
   const totalStr = 'Tổng = ' + game.total;
 
   history.push({
@@ -283,11 +295,11 @@ async function handleBet(chatId, user, choice, amount) {
   });
   if (history.length > 100) history.shift();
 
-  // ===== GỬI ẢNH XÚC XẮC =====
-  const diceImageUrl = createDiceImageUrl(game.dice, game.total, game.result);
-  await sendPhoto(chatId, diceImageUrl, '🎲 Kết quả xúc xắc phiên #' + ('00000' + sessionId).slice(-5));
-
+  // ===== GỬI ẢNH XÚC XẮC TO =====
   const sid = ('00000' + sessionId).slice(-5);
+  const diceImageUrl = createDiceImageUrl(game.dice, game.total, game.result);
+  await sendPhoto(chatId, diceImageUrl, '🎲 Phiên #' + sid);
+
   const sessionStr = '#' + sid;
   const isWin = validChoice === game.result;
 
@@ -399,8 +411,7 @@ async function handleMessage(update) {
 
   if (cmd === '.dice') {
     const n = Math.floor(Math.random() * 6) + 1;
-    const diceEmojis = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-    return sendMessage(chatId, '🎲 Bạn lắc được: ' + diceEmojis[n - 1] + ' (' + n + ')\n\n' + DEV);
+    return sendMessage(chatId, '🎲 Bạn lắc được: ' + DICE_EMOJI[n - 1] + ' (' + n + ')\n\n' + DEV);
   }
 
   if (cmd === '.coin') {

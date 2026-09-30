@@ -777,9 +777,9 @@ async function handleMessage(update) {
   }
 
   // ===== TEST GIF =====
-  if (cmd === '.testgif') {
-    return sendPhoto(chatId, 'https://i.ibb.co/dC5R9mz/giphy.gif', '🎬 Test GIF');
-  }
+if (cmd === '.testgif') {
+  return sendPhoto(chatId, 'https://i.ibb.co/zVT9Qv5F/44495f4566cd.png', '🎬 Test PNG');
+}
 
   // ===== ADMIN: .duyetrut =====
   if (cmd === '.duyetrut') {

@@ -496,7 +496,6 @@ async function handleBet(chatId, user, choice, amount, messageId) {
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV, messageId);
   }
-                       }
 function extractCommand(text) {
   const lower = text.toLowerCase().trim();
   const match = lower.match(/\.([a-z0-9]+)/);

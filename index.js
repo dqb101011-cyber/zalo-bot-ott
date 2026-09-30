@@ -16,7 +16,6 @@ const users = {};
 let sessionId = 0;
 let history = [];
 
-// ====== 216 ẢNH XÚC XẮC ======
 const DICE_IMAGES = {
   '1-1-1': 'https://i.ibb.co/zVT9Qv5F/44495f4566cd.png',
   '1-1-2': 'https://i.ibb.co/14yzZKq/226980a4c944.png',
@@ -236,9 +235,7 @@ const DICE_IMAGES = {
   '6-6-6': 'https://i.ibb.co/rKbK8mPv/3f10c6801a95.png'
 };
 
-// ====== EMOJI XÚC XẮC ======
 const DICE_EMOJI = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-// ====== GỬI TIN NHẮN ======
 async function sendMessage(chatId, text) {
   try {
     await axios.post(`${BASE_URL}/sendMessage`, {
@@ -251,7 +248,6 @@ async function sendMessage(chatId, text) {
   }
 }
 
-// ====== GỬI ẢNH ======
 async function sendPhoto(chatId, photoUrl, caption) {
   try {
     await axios.post(`${BASE_URL}/sendPhoto`, {
@@ -265,7 +261,6 @@ async function sendPhoto(chatId, photoUrl, caption) {
   }
 }
 
-// ====== XÚC XẮC ======
 function rollDice() {
   return [
     Math.floor(Math.random() * 6) + 1,
@@ -281,7 +276,6 @@ function playTaiXiu() {
   return { dice: dice, total: total, result: result };
 }
 
-// ====== USER ======
 function getUser(userId, name) {
   if (!users[userId]) {
     users[userId] = {
@@ -292,36 +286,35 @@ function getUser(userId, name) {
       totalBet: 0,
       createdAt: Date.now()
     };
-    console.log('User mới: ' + name + ' (' + userId + ')');
+    console.log('Người chơi mới: ' + name + ' (' + userId + ')');
   }
   return users[userId];
 }
 
 function formatMoney(amount) {
-  return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' VND';
+  return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' VNĐ';
 }
 
-// ====== TEXT LỆNH ======
 function getHelpText() {
   return '🎰 BOT TÀI XỈU 🎰\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     '💰 LỆNH TIỀN TỆ:\n' +
-    '• .tx tài 10000 - Cược Tài\n' +
-    '• .tx xỉu 10000 - Cược Xỉu\n' +
-    '• .bal - Xem số dư\n' +
-    '• .top - Bảng xếp hạng\n' +
-    '• .history - Lịch sử phiên\n' +
-    '• .me - Thông tin + ID\n' +
-    '• .getid - Reply để lấy ID\n' +
+    '• .tx tài 10000 — Cược Tài\n' +
+    '• .tx xỉu 10000 — Cược Xỉu\n' +
+    '• .sodu — Xem số dư\n' +
+    '• .bxh — Bảng xếp hạng\n' +
+    '• .lichsu — Lịch sử phiên\n' +
+    '• .toi — Thông tin cá nhân\n' +
     '\n🎮 LỆNH KHÁC:\n' +
-    '• .dice - Lắc xúc xắc\n' +
-    '• .coin - Tung đồng xu\n' +
+    '• .dice — Lắc xúc xắc\n' +
+    '• .coin — Tung đồng xu\n' +
+    '\n📖 Gõ .trogiup để xem lại\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     DEV;
 }
 
 function getBalText(user) {
-  return '💰 SỐ DƯ\n' +
+  return '💰 SỐ DƯ CỦA BẠN\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     '👤 Tên: ' + user.name + '\n' +
     '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
@@ -332,10 +325,10 @@ function getBalText(user) {
 }
 
 function getMeText(user, userId) {
-  return '👤 THÔNG TIN\n' +
+  return '👤 THÔNG TIN CÁ NHÂN\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     '📛 Tên: ' + user.name + '\n' +
-    '🆔 ID: ' + userId + '\n' +
+    '🆔 Mã số: ' + userId + '\n' +
     '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
     '🏆 Thắng: ' + user.winCount + '\n' +
     '💀 Thua: ' + user.loseCount + '\n' +
@@ -374,13 +367,12 @@ function getHistoryText() {
   for (let i = 0; i < recent.length; i++) {
     const h = recent[i];
     const sid = ('00000' + h.id).slice(-5);
-    text += '#' + sid + ' | ' + h.dice.join('-') + ' = ' + h.total + ' | ' + h.result + '\n';
+    text += '#' + sid + ' | ' + h.dice.join(' — ') + ' = ' + h.total + ' | ' + h.result + '\n';
   }
   text += '━━━━━━━━━━━━━━━━━━\n' + DEV;
   return text;
 }
 
-// ====== XỬ LÝ CƯỢC ======
 async function handleBet(chatId, user, choice, amount) {
   const choiceLower = (choice || '').toLowerCase();
   let validChoice = null;
@@ -457,7 +449,7 @@ async function handleBet(chatId, user, choice, amount) {
       '🎯 Kết quả: ' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
       '🎉 BẠN THẮNG!\n' +
-      '✅ Cược: ' + validChoice + ' - ' + formatMoney(amount) + '\n' +
+      '✅ Cược: ' + validChoice + ' — ' + formatMoney(amount) + '\n' +
       '💰 Nhận: +' + formatMoney(winAmount) + '\n' +
       '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
@@ -471,13 +463,13 @@ async function handleBet(chatId, user, choice, amount) {
       '🎯 Kết quả: ' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
       '😢 BẠN THUA!\n' +
-      '❌ Cược: ' + validChoice + ' - ' + formatMoney(amount) + '\n' +
+      '❌ Cược: ' + validChoice + ' — ' + formatMoney(amount) + '\n' +
       '💸 Mất: -' + formatMoney(amount) + '\n' +
       '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' +
       DEV);
   }
-    }
+}
 function extractCommand(text) {
   const lower = text.toLowerCase().trim();
   const match = lower.match(/\.([a-z0-9]+)/);
@@ -486,13 +478,12 @@ function extractCommand(text) {
 }
 
 async function handleMessage(update) {
-  console.log('Nhận update:', JSON.stringify(update, null, 2));
+  console.log('Nhận cập nhật:', JSON.stringify(update, null, 2));
 
   const message = update.message || update;
   if (!message) return;
 
   const chatId = message.chat && message.chat.id ? message.chat.id : message.chat_id;
-  const chatType = message.chat && message.chat.chat_type ? message.chat.chat_type : 'PRIVATE';
   const senderId = message.from && message.from.id ? message.from.id : (message.from_id || 'unknown');
   const senderName = message.from && message.from.display_name ? message.from.display_name : 'Người chơi';
 
@@ -505,32 +496,11 @@ async function handleMessage(update) {
   const cmd = extractCommand(text);
   if (!cmd) return;
 
-  if (cmd === '.help' || cmd === '.start') return sendMessage(chatId, getHelpText());
-  if (cmd === '.bal' || cmd === '.balance' || cmd === '.money') return sendMessage(chatId, getBalText(user));
-  if (cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user, senderId));
-  if (cmd === '.top' || cmd === '.bxh') return sendMessage(chatId, getTopText());
-  if (cmd === '.history' || cmd === '.ls') return sendMessage(chatId, getHistoryText());
-
-  if (cmd === '.getid' || cmd === '.id') {
-    const replyMsg = message.reply_to_message || message.quote || message.reply || 
-                     (message.message && message.message.reply_to_message);
-    if (!replyMsg) {
-      return sendMessage(chatId, '❌ Cần REPLY tin nhắn của người đó!\n\n' +
-        '📌 Cách dùng:\n' +
-        '1. NHẤN GIỮ tin nhắn của người đó\n' +
-        '2. Chọn "Trả lời"\n' +
-        '3. Gõ: .getid\n\n' +
-        '💡 Hoặc nhờ họ gõ .me để xem ID\n\n' + DEV);
-    }
-    const replyFrom = replyMsg.from || {};
-    const replyId = replyFrom.id || replyFrom.user_id || 'unknown';
-    const replyName = replyFrom.display_name || replyFrom.name || 'Không rõ';
-    return sendMessage(chatId, '🆔 THÔNG TIN NGƯỜI ĐƯỢC REPLY\n' +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      '📛 Tên: ' + replyName + '\n' +
-      '🆔 ID: ' + replyId + '\n' +
-      '━━━━━━━━━━━━━━━━━━\n' + DEV);
-  }
+  if (cmd === '.trogiup' || cmd === '.help' || cmd === '.start') return sendMessage(chatId, getHelpText());
+  if (cmd === '.sodu' || cmd === '.bal' || cmd === '.balance') return sendMessage(chatId, getBalText(user));
+  if (cmd === '.toi' || cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user, senderId));
+  if (cmd === '.bxh' || cmd === '.top') return sendMessage(chatId, getTopText());
+  if (cmd === '.lichsu' || cmd === '.history' || cmd === '.ls') return sendMessage(chatId, getHistoryText());
 
   if (cmd === '.tx') {
     const lowerText = text.toLowerCase();
@@ -555,10 +525,9 @@ async function handleMessage(update) {
     return sendMessage(chatId, '🪙 Kết quả: ' + result + '\n\n' + DEV);
   }
 
-  return sendMessage(chatId, '❓ Lệnh không hợp lệ!\n\nGõ .help để xem danh sách lệnh\n\n' + DEV);
+  return sendMessage(chatId, '❓ Lệnh không hợp lệ!\n\nGõ .trogiup để xem danh sách lệnh\n\n' + DEV);
 }
 
-// ====== WEBHOOK ======
 app.post('/webhook', async function(req, res) {
   res.json({ ok: true });
   try {
@@ -568,14 +537,12 @@ app.post('/webhook', async function(req, res) {
   }
 });
 
-// ====== HEALTH CHECK ======
 app.get('/', function(req, res) {
   res.send('Bot Tài Xỉu OK! | ' + DEV);
 });
 
-// ====== KHỞI ĐỘNG ======
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
-  console.log('Bot chạy port ' + PORT);
+  console.log('Bot chạy cổng ' + PORT);
   console.log(DEV);
 });

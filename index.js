@@ -683,7 +683,28 @@ async function handleMessage(update) {
 
   return sendMessage(chatId, '❓ Lệnh không hợp lệ!\n\nGõ .trogiup để xem danh sách lệnh\n\n' + DEV);
 }
+if (cmd === '.1') {
+  return sendMessage(chatId, '1️⃣ @[user_id]:\n@[' + senderId + '] hello!');
+}
 
+if (cmd === '.2') {
+  return sendMessage(chatId, '2️⃣ @{user_id}:\n@{' + senderId + '} hello!');
+}
+
+if (cmd === '.3') {
+  try {
+    const testText = '3️⃣ mentions:\n@' + senderName + ' hello!';
+    const atPos = testText.indexOf('@');
+    await axios.post(`${BASE_URL}/sendMessage`, {
+      chat_id: chatId,
+      text: testText,
+      mentions: [{ user_id: senderId, offset: atPos, length: senderName.length + 1 }]
+    });
+  } catch (err) {
+    console.error('Lỗi test 3:', err.message);
+  }
+  return;
+}
 // ===== HÀM CƯỢC CÓ @ USER =====
 async function handleBetWithMention(chatId, user, choice, amount, senderName) {
   const choiceLower = (choice || '').toLowerCase();

@@ -672,12 +672,10 @@ function getHelpText() {
     '\n⚔️ TÀI XỈU PVP (MINH BẠCH):\n' +
     '• .txpvp [tiền] — Tạo phòng\n' +
     '• .vao [mã] — Vào phòng\n' +
-    '• .xacnhan — Xác nhận tham gia\n' +
-    '• .tai / .xiu — Chọn trong phòng\n' +
+    '• .xacnhan — NHẮN RIÊNG cho bot để tham gia\n' +
+    '• .tai / .xiu — NHẮN RIÊNG cho bot khi có phòng\n' +
     '• .huyphong — Hủy phòng chờ\n' +
     '• .phong — Xem phòng chờ\n' +
-    '💸 Phí trung gian: 4,9%\n' +
-    '🤝 Bot chỉ làm trọng tài — không chọn → hoàn tiền\n' +
     '\n ✈️ MÁY BAY AVIATOR: \n' +
     '• .aviator — Mở web game\n' +
     '\n⚽ GAME SÚT BÓNG:\n' +
@@ -1061,7 +1059,7 @@ async function startPvpGame(roomId) {
     '━━━━━━━━━━━━━━━━━━\n' +
     '📌 Cả 2 chọn: .tai hoặc .xiu\n' +
     '⏰ 60 giây\n' +
-    '⚠️ Không chọn = hoàn tiền (không xử thua)\n' +
+    '⚠️ Không chọn = hoàn tiền\n' +
     '━━━━━━━━━━━━━━━━━━\n' + DEV;
 
   await sendDM(room.playerA, startMsg);
@@ -1110,7 +1108,7 @@ async function handleMessage(update) {
   if (cmd === '.start') {
     return sendMessage(chatId,
       '👋 CHÀO MỪNG!\n━━━━━━━━━━━━━━━━━━\n' +
-      '✅ Bạn đã kích hoạt nhận DM\n' +
+      '✅ Bạn đã kích hoạt nhận \n' +
       '📩 Từ giờ bot có thể gửi tin riêng\n\n' +
       '📖 .trogiup\n━━━━━━━━━━━━━━━━━━\n' + DEV);
                          }
@@ -1168,6 +1166,65 @@ if (cmd === '.aviator' || cmd === '.mb' || cmd === '.game') {
   return sendMessage(chatId, '🛫 AVIATOR\n━━━━━━━━━━━━━━━━━━\n👉 ĐANG BẢO TRÌ\n━━━━━━━━━━━━━━━━━━\n' + DEV);
 }
 
+// ===== .test — TEST TẠO ẢNH HCTI =====
+if (cmd === '.test') {
+  if (!HCTI_USER_ID || !HCTI_API_KEY) {
+    return sendMessage(chatId,
+      '❌ CHƯA CẤU HÌNH HCTI\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '📌 Cần thêm vào Render Environment:\n' +
+      '• HCTI_USER_ID = ' + (HCTI_USER_ID || '(trống)') + '\n' +
+      '• HCTI_API_KEY = ' + (HCTI_API_KEY ? '(đã có)' : '(trống)') + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' + DEV);
+  }
+
+  await sendMessage(chatId, '⏳ Đang tạo ảnh test...');
+
+  const fakeRoom = {
+    roomId: 'TEST',
+    playerAName: senderName,
+    playerBName: 'Người chơi B',
+    choiceA: 'Tài',
+    choiceB: 'Xỉu',
+    amount: 10000
+  };
+
+  const fakeGame = {
+    dice: [5, 5, 6],
+    total: 16,
+    result: 'Tài'
+  };
+
+  try {
+    const imgUrl = await generatePvpResultImage(fakeRoom, fakeGame, false);
+    if (imgUrl) {
+      await sendPhoto(chatId, imgUrl,
+        '✅ TEST THÀNH CÔNG!\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '🎨 Ảnh được tạo từ HCTI\n' +
+        '🔗 URL: ' + imgUrl + '\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '💡 API HCTI hoạt động tốt!\n' + DEV);
+    } else {
+      await sendMessage(chatId,
+        '❌ TẠO ẢNH THẤT BẠI\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '🔍 Kiểm tra:\n' +
+        '1. HCTI_USER_ID đúng chưa?\n' +
+        '2. HCTI_API_KEY đúng chưa?\n' +
+        '3. Còn quota không?\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '💡 Xem log Render để debug\n' + DEV);
+    }
+  } catch (err) {
+    await sendMessage(chatId,
+      '❌ LỖI: ' + err.message + '\n\n' +
+      '💡 Xem log Render\n\n' + DEV);
+  }
+  return;
+}
+  
+  
 // ===== ⚔️ PVP: TẠO PHÒNG =====
 if (cmd === '.txpvp' || cmd === '.pvp') {
   const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();

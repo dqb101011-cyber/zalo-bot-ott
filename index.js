@@ -780,7 +780,7 @@ if (cmd === '.aviator' || cmd === '.mb' || cmd === '.game') {
     '🛫 GAME AVIATOR\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     '🎮 Chơi Aviator trên web:\n' +
-    '👉 https://aviator-web-izxf.onrender.com\n' +
+    '👉 AVIATOR ĐANG BẢO TRÌ.\n' +
     '\n' +
     '📌 Cách chơi:\n' +
     '1. Nhập ID Zalo của bạn\n' +

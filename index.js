@@ -11,7 +11,7 @@ const BASE_URL = `https://bot-api.zaloplatforms.com/bot${BOT_TOKEN}`;
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(function(id) { return id.trim(); });
 const NOTIFY_GROUP_ID = process.env.NOTIFY_GROUP_ID || '';
 
-const APIFLASH_KEY = process.env.APIFLASH_KEY || '';
+const SCREENSHOTONE_KEY = process.env.SCREENSHOTONE_KEY || '';
 
 const DEV = 'Dev by Dương Quốc Bảo';
 const START_BALANCE = 0;
@@ -487,80 +487,84 @@ function calcPvpPayout(potAmount) {
   return { fee: fee, payout: payout };
 }
 
-// ===== TẠO ẢNH PVP (APIFLASH - HTML RÚT GỌN) =====
+// ===== TẠO ẢNH PVP (SCREENSHOTONE) =====
 async function generatePvpResultImage(room, game, isTie) {
-  if (!APIFLASH_KEY) {
-    console.log('⚠️ Chưa cấu hình APIFLASH_KEY');
+  if (!SCREENSHOTONE_KEY) {
+    console.log('⚠️ Chưa cấu hình SCREENSHOTONE_KEY');
     return null;
   }
 
   const diceEmoji = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-  const diceStr = diceEmoji[game.dice[0] - 1] + diceEmoji[game.dice[1] - 1] + diceEmoji[game.dice[2] - 1];
+  const diceStr = diceEmoji[game.dice[0] - 1] + ' ' + diceEmoji[game.dice[1] - 1] + ' ' + diceEmoji[game.dice[2] - 1];
 
   const isAWin = !isTie && room.choiceA === game.result;
   const isBWin = !isTie && room.choiceB === game.result;
 
-  let winnerText, winnerColor;
-  if (isTie) { winnerText = 'HÒA - HOÀN TIỀN'; winnerColor = '#ddd'; }
-  else if (isAWin) { winnerText = room.playerAName + ' THẮNG!'; winnerColor = '#ff6b6b'; }
-  else { winnerText = room.playerBName + ' THẮNG!'; winnerColor = '#5dade2'; }
+  let winnerText, winnerClass;
+  if (isTie) { winnerText = '⚠️ HÒA — HOÀN TIỀN CẢ 2'; winnerClass = 'tie'; }
+  else if (isAWin) { winnerText = '🏆 ' + room.playerAName + ' THẮNG!'; winnerClass = 'a'; }
+  else { winnerText = '🏆 ' + room.playerBName + ' THẮNG!'; winnerClass = 'b'; }
 
-  const rColor = game.result === 'Tài' ? '#e74c3c' : '#3498db';
-  const rBg = game.result === 'Tài' ? '#fff5f5' : '#f0f8ff';
-  const aBg = room.choiceA === 'Tài' ? '#e74c3c' : room.choiceA === 'Xỉu' ? '#3498db' : '#555';
-  const bBg = room.choiceB === 'Tài' ? '#e74c3c' : room.choiceB === 'Xỉu' ? '#3498db' : '#555';
+  const resultColor = game.result === 'Tài' ? '#e74c3c' : '#3498db';
+  const resultBg = game.result === 'Tài' ? '#fff5f5' : '#f0f8ff';
 
-  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
-    '*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}' +
-    'body{width:800px;height:560px;background:#16213e;padding:20px;color:#fff}' +
-    '.h{text-align:center;margin-bottom:15px}' +
-    '.h h1{font-size:28px;color:#f39c12}' +
-    '.h .r{font-size:14px;color:#aaa;margin-top:5px}' +
-    '.p{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}' +
-    '.u{flex:1;padding:15px;background:rgba(255,255,255,0.08);border-radius:15px;text-align:center;min-height:150px}' +
-    '.u.a{border-left:6px solid #e74c3c}.u.b{border-right:6px solid #3498db}' +
-    '.u .l{font-size:26px;margin-bottom:5px}' +
-    '.u .n{font-size:18px;font-weight:bold;margin-bottom:10px}' +
-    '.u .c{display:inline-block;padding:6px 20px;border-radius:20px;font-size:16px;font-weight:bold;color:#fff}' +
-    '.vs{font-size:28px;font-weight:bold;color:#f39c12;padding:0 12px}' +
-    '.rb{background:' + rBg + ';color:#333;padding:15px;border-radius:15px;text-align:center;margin-bottom:15px}' +
-    '.rb .d{font-size:38px;letter-spacing:6px;margin-bottom:5px}' +
-    '.rb .t{font-size:16px;color:#555;margin-bottom:5px}' +
-    '.rb .r{font-size:28px;font-weight:bold;color:' + rColor + '}' +
-    '.w{background:rgba(243,156,18,0.2);border:2px solid ' + winnerColor + ';border-radius:12px;padding:12px;text-align:center;font-size:20px;font-weight:bold;color:' + winnerColor + '}' +
-    '.f{text-align:center;font-size:11px;color:#555;margin-top:10px}' +
-    '</style></head><body>' +
-    '<div class="h"><h1>⚔️ KẾT QUẢ PVP ⚔️</h1><div class="r">Phòng #' + room.roomId + '</div></div>' +
-    '<div class="p">' +
-    '<div class="u a"><div class="l">🅰️</div><div class="n">' + room.playerAName + '</div>' +
-    '<div class="c" style="background:' + aBg + '">' + (room.choiceA || 'Không chọn') + '</div></div>' +
-    '<div class="vs">VS</div>' +
-    '<div class="u b"><div class="l">🅱️</div><div class="n">' + room.playerBName + '</div>' +
-    '<div class="c" style="background:' + bBg + '">' + (room.choiceB || 'Không chọn') + '</div></div>' +
-    '</div>' +
-    '<div class="rb"><div class="d">' + diceStr + '</div><div class="t">Tổng = <b>' + game.total + '</b></div>' +
-    '<div class="r">' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '</div></div>' +
-    '<div class="w">🏆 ' + winnerText + '</div>' +
-    '<div class="f">' + DEV + '</div>' +
-    '</body></html>';
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{width:800px;height:560px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);padding:25px;color:#fff}
+.header{text-align:center;margin-bottom:20px}
+.header h1{font-size:30px;color:#f39c12;letter-spacing:2px}
+.header .room{font-size:14px;color:#aaa;margin-top:5px}
+.players{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.player{flex:1;padding:15px;background:rgba(255,255,255,0.06);border-radius:15px;text-align:center;border:2px solid rgba(255,255,255,0.1);min-height:160px}
+.player.a{border-left:6px solid #e74c3c}
+.player.b{border-right:6px solid #3498db}
+.player .label{font-size:28px;margin-bottom:5px}
+.player .name{font-size:20px;font-weight:bold;margin-bottom:12px;word-break:break-word}
+.player .choice{display:inline-block;padding:8px 24px;border-radius:20px;font-size:18px;font-weight:bold}
+.choice.tai{background:#e74c3c;color:#fff}
+.choice.xiu{background:#3498db;color:#fff}
+.choice.none{background:#555;color:#ccc}
+.vs{font-size:32px;font-weight:bold;color:#f39c12;padding:0 15px}
+.result-box{background:${resultBg};color:#333;padding:18px;border-radius:15px;text-align:center;margin-bottom:15px}
+.result-box .dice{font-size:42px;margin-bottom:5px;letter-spacing:8px}
+.result-box .total{font-size:18px;margin-bottom:5px;color:#555}
+.result-box .result{font-size:32px;font-weight:bold;color:${resultColor}}
+.winner{background:rgba(243,156,18,0.2);border:2px solid #f39c12;border-radius:12px;padding:15px;text-align:center;font-size:22px;font-weight:bold;color:#f39c12}
+.winner.a{background:rgba(231,76,60,0.2);border-color:#e74c3c;color:#ff6b6b}
+.winner.b{background:rgba(52,152,219,0.2);border-color:#3498db;color:#5dade2}
+.winner.tie{background:rgba(150,150,150,0.2);border-color:#999;color:#ddd}
+.footer{text-align:center;font-size:12px;color:#555;margin-top:12px}
+</style></head><body>
+<div class="header"><h1>⚔️ KẾT QUẢ PVP ⚔️</h1><div class="room">Phòng #${room.roomId}</div></div>
+<div class="players">
+<div class="player a"><div class="label">🅰️</div><div class="name">${room.playerAName}</div>
+<div class="choice ${room.choiceA === 'Tài' ? 'tai' : room.choiceA === 'Xỉu' ? 'xiu' : 'none'}">${room.choiceA === 'Tài' ? '🔴 ' : room.choiceA === 'Xỉu' ? '🔵 ' : ''}${room.choiceA || 'Không chọn'}</div></div>
+<div class="vs">VS</div>
+<div class="player b"><div class="label">🅱️</div><div class="name">${room.playerBName}</div>
+<div class="choice ${room.choiceB === 'Tài' ? 'tai' : room.choiceB === 'Xỉu' ? 'xiu' : 'none'}">${room.choiceB === 'Tài' ? '🔴 ' : room.choiceB === 'Xỉu' ? '🔵 ' : ''}${room.choiceB || 'Không chọn'}</div></div>
+</div>
+<div class="result-box"><div class="dice">${diceStr}</div><div class="total">Tổng = <b>${game.total}</b></div><div class="result">${game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU'}</div></div>
+<div class="winner ${winnerClass}">${winnerText}</div>
+<div class="footer">${DEV}</div>
+</body></html>`;
 
   try {
-    const res = await axios.get('https://api.apiflash.com/v1/urltoimage', {
+    const res = await axios.get('https://api.screenshotone.com/take', {
       params: {
-        access_key: APIFLASH_KEY,
+        access_key: SCREENSHOTONE_KEY,
         html: html,
         viewport_width: 800,
         viewport_height: 560,
         format: 'png',
-        response_type: 'json',
-        wait_until: 'page_loaded'
+        response_type: 'json'
       },
       timeout: 30000
     });
-    console.log('✅ Đã tạo ảnh ApiFlash:', res.data.url);
-    return res.data.url;
+    console.log('✅ Đã tạo ảnh ScreenshotOne:', res.data.url || res.data);
+    return res.data.url || res.data;
   } catch (err) {
-    console.error('Lỗi ApiFlash:', err.response ? err.response.data : err.message);
+    console.error('Lỗi ScreenshotOne:', err.response ? err.response.data : err.message);
     return null;
   }
 }
@@ -785,7 +789,7 @@ async function playShot(chatId, user, position) {
   return sendMessage(chatId,
     '✅ VÀO! Lần ' + currentLevel + '/9\n💰 ' + formatMoney(currentAmount) + ' (x' + nextRate + ')\n' +
     '👉 .tiep / .lay\n\n' + DEV);
-}
+    }
 async function handlePvpTimeout(roomId) {
   const room = await Pvp.findOne({ roomId: roomId });
   if (!room || room.status !== 'choosing') return;
@@ -1022,11 +1026,11 @@ async function handleMessage(update) {
   }
 
   if (cmd === '.test') {
-    if (!APIFLASH_KEY) {
+    if (!SCREENSHOTONE_KEY) {
       return sendMessage(chatId,
-        '❌ CHƯA CẤU HÌNH APIFLASH\n' +
+        '❌ CHƯA CẤU HÌNH SCREENSHOTONE\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
-        '📌 Cần thêm biến APIFLASH_KEY trên Render\n' +
+        '📌 Cần thêm biến SCREENSHOTONE_KEY trên Render\n' +
         '━━━━━━━━━━━━━━━━━━\n' + DEV);
     }
 
@@ -1041,36 +1045,25 @@ async function handleMessage(update) {
       amount: 10000
     };
 
-    const fakeGame = {
-      dice: [5, 5, 6],
-      total: 16,
-      result: 'Tài'
-    };
+    const fakeGame = { dice: [5, 5, 6], total: 16, result: 'Tài' };
 
     try {
       const imgUrl = await generatePvpResultImage(fakeRoom, fakeGame, false);
       if (imgUrl) {
         await sendPhoto(chatId, imgUrl,
-          '✅ TEST THÀNH CÔNG!\n' +
-          '━━━━━━━━━━━━━━━━━━\n' +
-          '🎨 Ảnh được tạo từ ApiFlash\n' +
-          '🔗 URL: ' + imgUrl + '\n' +
-          '━━━━━━━━━━━━━━━━━━\n' +
-          '💡 API hoạt động tốt!\n' + DEV);
+          '✅ TEST THÀNH CÔNG!\n━━━━━━━━━━━━━━━━━━\n' +
+          '🎨 Ảnh từ ScreenshotOne\n🔗 URL: ' + imgUrl + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n💡 API hoạt động tốt!\n' + DEV);
       } else {
         await sendMessage(chatId,
-          '❌ TẠO ẢNH THẤT BẠI\n' +
-          '━━━━━━━━━━━━━━━━━━\n' +
+          '❌ TẠO ẢNH THẤT BẠI\n━━━━━━━━━━━━━━━━━━\n' +
           '🔍 Kiểm tra:\n' +
-          '1. APIFLASH_KEY đúng chưa?\n' +
+          '1. SCREENSHOTONE_KEY đúng chưa?\n' +
           '2. Còn quota không?\n' +
-          '━━━━━━━━━━━━━━━━━━\n' +
-          '💡 Xem log Render\n' + DEV);
+          '━━━━━━━━━━━━━━━━━━\n💡 Xem log Render\n' + DEV);
       }
     } catch (err) {
-      await sendMessage(chatId,
-        '❌ LỖI: ' + err.message + '\n\n' +
-        '💡 Xem log Render\n\n' + DEV);
+      await sendMessage(chatId, '❌ LỖI: ' + err.message + '\n\n💡 Xem log Render\n\n' + DEV);
     }
     return;
     }
@@ -1444,7 +1437,7 @@ if (cmd === '.lenhrut' || cmd === '.lsrut') {
   }
   t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
   return sendMessage(chatId, t);
-    }
+}
     if (cmd === '.duyetrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Không phải admin!\n\n' + DEV);
     const parts = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim().split(/\s+/);
@@ -1637,7 +1630,7 @@ app.post('/webhook', async function(req, res) {
 });
 
 app.get('/', function(req, res) {
-  res.send('Bot PvP OK! | ApiFlash | ' + DEV);
+  res.send('Bot PvP OK! | ScreenshotOne | ' + DEV);
 });
 
 const PORT = process.env.PORT || 3000;

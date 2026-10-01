@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const mongoose = require('mongoose');
@@ -19,81 +18,10 @@ const MAX_BET = 50000;
 const MIN_WITHDRAW = 10000;
 const MAX_WITHDRAW = 5000000;
 
-// ===== CẤU HÌNH AI =====
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6Ii0xg4squai731tsgfVUylK88AJWtWXihCo-UkDzWOhg';
-const AI_ENABLED = (process.env.AI_ENABLED || 'true') === 'true';
-const AI_MODEL = process.env.AI_MODEL || 'gemini-2.0-flash';
-const AI_MAX_HISTORY = parseInt(process.env.AI_MAX_HISTORY || '10', 10);
-const AI_COOLDOWN_MS = 3000;
-
-const chatHistories = {};
-const lastAskTime = {};
-
-const AI_SYSTEM_PROMPT = 'Bạn là trợ lý AI thân thiện của bot game "Đỏ Hay Đen" trên Zalo. '
-  + 'Trả lời ngắn gọn (dưới 500 ký tự), vui vẻ, dùng tiếng Việt. '
-  + 'Bạn biết về game Tài Xỉu, Sút bóng, cách nạp/rút tiền của bot. '
-  + 'Nhắc nhở người chơi có trách nhiệm, không khuyến khích cờ bạc quá mức. '
-  + 'Khi được hỏi về lệnh, gợi ý gõ .trogiup để xem đầy đủ. '
-  + DEV;
-
-let geminiClient = null;
-if (AI_ENABLED && GEMINI_API_KEY) {
-  try {
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    geminiClient = genAI.getGenerativeModel({
-      model: AI_MODEL,
-      systemInstruction: AI_SYSTEM_PROMPT
-    });
-    console.log('✅ Đã khởi tạo Gemini AI: ' + AI_MODEL);
-  } catch (err) {
-    console.error('❌ Lỗi khởi tạo AI:', err.message);
-  }
-} else if (AI_ENABLED) {
-  console.warn('⚠️ AI bật nhưng thiếu GEMINI_API_KEY — bỏ qua');
-}
-
-async function askAI(userId, userName, question) {
-  if (!geminiClient) {
-    return '❌ AI chưa được cấu hình. Liên hệ admin!';
-  }
-
-  const now = Date.now();
-  if (lastAskTime[userId] && now - lastAskTime[userId] < AI_COOLDOWN_MS) {
-    const wait = Math.ceil((AI_COOLDOWN_MS - (now - lastAskTime[userId])) / 1000);
-    return '⏳ Chờ ' + wait + ' giây rồi hỏi tiếp nhé!';
-  }
-  lastAskTime[userId] = now;
-
-  if (!chatHistories[userId]) chatHistories[userId] = [];
-  const history = chatHistories[userId];
-
-  try {
-    const chat = geminiClient.startChat({
-      history: history.map(function(h) {
-        return { role: h.role, parts: [{ text: h.text }] };
-      })
-    });
-
-    const result = await chat.sendMessage(question);
-    const reply = result.response.text();
-
-    history.push({ role: 'user', text: question });
-    history.push({ role: 'model', text: reply });
-    while (history.length > AI_MAX_HISTORY * 2) history.shift();
-
-    return reply;
-  } catch (err) {
-    console.error('Lỗi AI:', err.message);
-    if (err.message && err.message.indexOf('API_KEY_INVALID') !== -1) {
-      return '❌ API key AI không hợp lệ!';
-    }
-    if (err.message && err.message.indexOf('quota') !== -1) {
-      return '❌ AI đã hết quota hôm nay, thử lại sau!';
-    }
-    return '❌ AI đang bận, thử lại sau!';
-  }
-}
+// ===== PVP CONFIG =====
+const PVP_FEE_RATE = 0.025;
+const PVP_TIMEOUT_MS = 60000;
+const pvpTimeouts = {};
 
 const WITHDRAW_IMAGES = {
   10000: 'https://i.ibb.co/rGYZJty8/Picsart-26-09-30-21-50-55-730.jpg',
@@ -187,6 +115,28 @@ const withdrawSchema = new mongoose.Schema({
 });
 const Withdraw = mongoose.model('Withdraw', withdrawSchema);
 
+// ===== SCHEMA PVP TÀI XỈU — THÊM MỚI =====
+const pvpSchema = new mongoose.Schema({
+  roomId: { type: String, unique: true },
+  playerA: String,
+  playerAName: String,
+  playerB: String,
+  playerBName: String,
+  amount: Number,
+  choiceA: { type: String, default: null },
+  choiceB: { type: String, default: null },
+  status: { type: String, default: 'waiting' },
+  result: { type: String, default: null },
+  dice: [Number],
+  total: Number,
+  winnerId: String,
+  winnerName: String,
+  fee: Number,
+  payout: Number,
+  createdAt: { type: Number, default: Date.now }
+});
+const Pvp = mongoose.model('Pvp', pvpSchema);
+
 async function getNextSessionId() {
   const counter = await Counter.findOneAndUpdate(
     { name: 'session' },
@@ -204,6 +154,7 @@ async function getNextWithdrawId() {
   );
   return counter.value;
 }
+
 const DICE_IMAGES = {
   '1-1-1': 'https://i.ibb.co/zVT9Qv5F/44495f4566cd.png',
   '1-1-2': 'https://i.ibb.co/14yzZKq/226980a4c944.png',
@@ -422,7 +373,6 @@ const DICE_IMAGES = {
   '6-6-5': 'https://i.ibb.co/k2VKsC8g/5acb334e85b4.png',
   '6-6-6': 'https://i.ibb.co/rKbK8mPv/3f10c6801a95.png'
 };
-
 const DICE_EMOJI = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
 function isAdmin(userId) {
@@ -504,6 +454,22 @@ function formatMoney(amount) {
   return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' VNĐ';
 }
 
+// ===== PVP HELPERS =====
+function genRoomId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let id = '';
+  for (let i = 0; i < 4; i++) {
+    id += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return id;
+}
+
+function calcPvpPayout(potAmount) {
+  const fee = Math.floor(potAmount * PVP_FEE_RATE);
+  const payout = potAmount - fee;
+  return { fee: fee, payout: payout };
+}
+
 function getHelpText() {
   return '🎰 ĐỎ HAY ĐEN 🎰\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
@@ -519,6 +485,12 @@ function getHelpText() {
     '\n 🎲 TÀI XỈU: \n' +
     '• .tx tài 10000 — Cược Tài\n' +
     '• .tx xỉu 10000 — Cược Xỉu\n' +
+    '\n⚔️ TÀI XỈU PVP (MINH BẠCH):\n' +
+    '• .txpvp [tiền] — Tạo phòng cược\n' +
+    '• .vao [mã] — Vào phòng\n' +
+    '• .tai / .xiu — Chọn trong phòng\n' +
+    '• .huyphong — Hủy phòng chờ\n' +
+    '• .phong — Xem phòng đang chờ\n' +
     '\n ✈️ MÁY BAY AVIATOR: \n' +
     '• .aviator — Mở web game Aviator\n' +
     '\n⚽ GAME SÚT BÓNG:\n' +
@@ -529,10 +501,6 @@ function getHelpText() {
     '\n🎮 LỆNH KHÁC:\n' +
     '• .dice — Lắc xúc xắc\n' +
     '• .coin — Tung đồng xu\n' +
-    '\n🤖 TRỢ LÝ AI:\n' +
-    '• .ai [câu hỏi] — Hỏi AI\n' +
-    '• .chat [câu hỏi] — Hỏi AI\n' +
-    '• .resetai — Xóa lịch sử AI\n' +
     '\n📖 Gõ .trogiup để xem lại\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     DEV;
@@ -655,22 +623,22 @@ async function handleBet(chatId, user, choice, amount) {
   }
 
   if (isWin) {
-  const winAmount = amount * 2;
-  user.balance += winAmount;
-  user.winCount++;
-  await user.save();
-  return sendMessage(chatId, '🎰 PHIÊN ' + sessionStr + '\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    '🎲 Xúc xắc: ' + diceStr + '\n' +
-    '📊 ' + totalStr + '\n' +
-    '🎯 Kết quả: ' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    '🎉 ' + user.name + ' THẮNG!\n' +
-    '✅ Cược: ' + validChoice + ' — ' + formatMoney(amount) + '\n' +
-    '💰 Nhận: +' + formatMoney(winAmount) + '\n' +
-    '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    DEV);
+    const winAmount = amount * 2;
+    user.balance += winAmount;
+    user.winCount++;
+    await user.save();
+    return sendMessage(chatId, '🎰 PHIÊN ' + sessionStr + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🎲 Xúc xắc: ' + diceStr + '\n' +
+      '📊 ' + totalStr + '\n' +
+      '🎯 Kết quả: ' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🎉 ' + user.name + ' THẮNG!\n' +
+      '✅ Cược: ' + validChoice + ' — ' + formatMoney(amount) + '\n' +
+      '💰 Nhận: +' + formatMoney(winAmount) + '\n' +
+      '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      DEV);
   } else {
     user.loseCount++;
     await user.save();
@@ -796,6 +764,143 @@ async function playShot(chatId, user, position) {
     '💰 Tiền: ' + formatMoney(currentAmount) + ' (x' + nextRate + ')\n' +
     '👉 .tiep để sút tiếp\n' +
     '👉 .lay để nhận tiền\n\n' + DEV);
+                        }
+// ===== PVP: XỬ LÝ HẾT GIỜ =====
+async function handlePvpTimeout(roomId) {
+  const room = await Pvp.findOne({ roomId: roomId });
+  if (!room || room.status !== 'choosing') return;
+
+  const AChosen = room.choiceA !== null;
+  const BChosen = room.choiceB !== null;
+  if (AChosen && BChosen) return;
+
+  if (!AChosen && !BChosen) {
+    await User.updateOne({ userId: room.playerA }, { $inc: { balance: room.amount } });
+    await User.updateOne({ userId: room.playerB }, { $inc: { balance: room.amount } });
+    room.status = 'cancelled';
+    await room.save();
+
+    const msg = '⏰ HẾT GIỜ — Cả 2 không chọn!\n💵 Đã hoàn ' + formatMoney(room.amount) + '\n\n' + DEV;
+    await sendMessage(room.playerA, msg);
+    await sendMessage(room.playerB, msg);
+    return;
+  }
+
+  let winnerId, winnerName, loserId, loserName, reason;
+  if (!AChosen) {
+    winnerId = room.playerB; winnerName = room.playerBName;
+    loserId = room.playerA; loserName = room.playerAName;
+    reason = 'A không chọn trong 60 giây';
+  } else {
+    winnerId = room.playerA; winnerName = room.playerAName;
+    loserId = room.playerB; loserName = room.playerBName;
+    reason = 'B không chọn trong 60 giây';
+  }
+
+  const pot = room.amount * 2;
+  const r = calcPvpPayout(pot);
+
+  await User.updateOne({ userId: winnerId }, { $inc: { balance: r.payout, winCount: 1 } });
+  await User.updateOne({ userId: loserId }, { $inc: { loseCount: 1 } });
+
+  room.status = 'done';
+  room.winnerId = winnerId;
+  room.winnerName = winnerName;
+  room.fee = r.fee;
+  room.payout = r.payout;
+  await room.save();
+
+  const msg = '⏰ HẾT GIỜ CHỌN!\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '❌ Lý do: ' + reason + '\n' +
+    '🏆 Người thắng: ' + winnerName + '\n' +
+    '💰 Nhận: ' + formatMoney(r.payout) + '\n' +
+    '💸 Phí bot: ' + formatMoney(r.fee) + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' + DEV;
+
+  await sendMessage(room.playerA, msg);
+  await sendMessage(room.playerB, msg);
+}
+
+// ===== PVP: CẢ 2 ĐÃ CHỌN → TUNG XÚC XẮC =====
+async function resolvePvp(roomId) {
+  const room = await Pvp.findOne({ roomId: roomId });
+  if (!room || room.status !== 'choosing') return;
+  if (room.choiceA === null || room.choiceB === null) return;
+
+  if (pvpTimeouts[roomId]) {
+    clearTimeout(pvpTimeouts[roomId]);
+    delete pvpTimeouts[roomId];
+  }
+
+  const game = playTaiXiu();
+  const diceStr = DICE_EMOJI[game.dice[0] - 1] + ' ' + DICE_EMOJI[game.dice[1] - 1] + ' ' + DICE_EMOJI[game.dice[2] - 1];
+
+  const pot = room.amount * 2;
+  const r = calcPvpPayout(pot);
+
+  let winnerId, winnerName, loserId, loserName;
+
+  if (room.choiceA === room.choiceB) {
+    await User.updateOne({ userId: room.playerA }, { $inc: { balance: room.amount } });
+    await User.updateOne({ userId: room.playerB }, { $inc: { balance: room.amount } });
+
+    room.status = 'cancelled';
+    room.dice = game.dice;
+    room.total = game.total;
+    room.result = game.result;
+    await room.save();
+
+    const msg = '⚔️ KẾT QUẢ PVP #' + roomId + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🎲 Xúc xắc: ' + diceStr + '\n' +
+      '📊 Tổng: ' + game.total + ' — ' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '⚠️ Cả 2 chọn giống nhau!\n' +
+      '💵 Hoàn tiền: ' + formatMoney(room.amount) + ' cho mỗi người\n' +
+      '━━━━━━━━━━━━━━━━━━\n' + DEV;
+
+    await sendMessage(room.playerA, msg);
+    await sendMessage(room.playerB, msg);
+    return;
+  }
+
+  if (room.choiceA === game.result) {
+    winnerId = room.playerA; winnerName = room.playerAName;
+    loserId = room.playerB; loserName = room.playerBName;
+  } else {
+    winnerId = room.playerB; winnerName = room.playerBName;
+    loserId = room.playerA; loserName = room.playerAName;
+  }
+
+  await User.updateOne({ userId: winnerId }, { $inc: { balance: r.payout, winCount: 1 } });
+  await User.updateOne({ userId: loserId }, { $inc: { loseCount: 1 } });
+
+  room.status = 'done';
+  room.dice = game.dice;
+  room.total = game.total;
+  room.result = game.result;
+  room.winnerId = winnerId;
+  room.winnerName = winnerName;
+  room.fee = r.fee;
+  room.payout = r.payout;
+  await room.save();
+
+  const msg = '⚔️ KẾT QUẢ PVP #' + roomId + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🎲 Xúc xắc: ' + diceStr + '\n' +
+    '📊 Tổng: ' + game.total + ' — ' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🅰️ ' + room.playerAName + ' chọn: ' + room.choiceA + '\n' +
+    '🅱️ ' + room.playerBName + ' chọn: ' + room.choiceB + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🏆 Người thắng: ' + winnerName + '\n' +
+    '💰 Nhận: ' + formatMoney(r.payout) + '\n' +
+    '💸 Phí bot 2,5%: ' + formatMoney(r.fee) + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' + DEV;
+
+  await sendMessage(room.playerA, msg);
+  await sendMessage(room.playerB, msg);
 }
 
 function extractCommand(text) {
@@ -857,7 +962,7 @@ async function handleMessage(update) {
       DEV);
   }
 
-  // ===== .aviator — MỞ WEB GAME =====
+  // ===== .aviator =====
   if (cmd === '.aviator' || cmd === '.mb' || cmd === '.game') {
     return sendMessage(chatId,
       '🛫 GAME AVIATOR\n' +
@@ -878,52 +983,283 @@ async function handleMessage(update) {
       DEV);
   }
 
-  // ===== 🤖 .ai / .chat / .hoi — HỎI AI =====
-  if (cmd === '.ai' || cmd === '.chat' || cmd === '.hoi') {
-    if (!AI_ENABLED) {
-      return sendMessage(chatId, '❌ Tính năng AI đang tắt!\n\n' + DEV);
-    }
-
-    const lower = text.toLowerCase();
-    let keyword = '.ai';
-    if (lower.indexOf('.chat') !== -1) keyword = '.chat';
-    else if (lower.indexOf('.hoi') !== -1) keyword = '.hoi';
-
-    const question = text.substring(lower.indexOf(keyword) + keyword.length).trim();
-
-    if (!question) {
+  // ===== ⚔️ PVP: TẠO PHÒNG =====
+  if (cmd === '.txpvp' || cmd === '.pvp') {
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+    if (parts.length < 1 || !parts[0]) {
       return sendMessage(chatId,
-        '🤖 TRỢ LÝ AI\n' +
+        '⚔️ TÀI XỈU PVP — MINH BẠCH\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
         '📌 Cú pháp:\n' +
-        '• .ai [câu hỏi]\n' +
-        '• .chat [câu hỏi]\n' +
-        '• .hoi [câu hỏi]\n\n' +
+        '.txpvp [số tiền]\n\n' +
         '📖 Ví dụ:\n' +
-        '.ai Tài xỉu là gì?\n' +
-        '.ai Cách chơi sút bóng?\n' +
-        '.ai Bot có lệnh gì?\n\n' +
-        '💡 AI nhớ 10 tin gần nhất\n' +
-        '🔄 Reset: .resetai\n' +
+        '.txpvp 10000\n\n' +
+        '🎯 Cách chơi:\n' +
+        '1. Bạn tạo phòng → nhận mã\n' +
+        '2. Gửi mã cho đối thủ\n' +
+        '3. Đối thủ gõ: .vao [mã]\n' +
+        '4. Cả 2 chọn .tai hoặc .xiu\n' +
+        '5. Bot tung xúc xắc công khai\n' +
+        '6. Ai đúng → nhận 97,5% pot\n\n' +
+        '💰 Cược: 1.000 — 50.000 VNĐ\n' +
+        '💸 Phí bot: 2,5%\n' +
+        '⚠️ Cả 2 chọn giống → hoàn tiền\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
         DEV);
     }
 
-    await sendMessage(chatId, '🤖 Đang suy nghĩ...');
+    const amount = parseInt(parts[0].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) {
+      return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    }
+    if (amount < MIN_BET) return sendMessage(chatId, '❌ Cược tối thiểu: ' + formatMoney(MIN_BET) + '\n\n' + DEV);
+    if (amount > MAX_BET) return sendMessage(chatId, '❌ Cược tối đa: ' + formatMoney(MAX_BET) + '\n\n' + DEV);
+    if (user.balance < amount) {
+      return sendMessage(chatId, '❌ Không đủ tiền!\n\n💵 Số dư: ' + formatMoney(user.balance) + '\n💸 Cần: ' + formatMoney(amount) + '\n\n' + DEV);
+    }
 
-    const reply = await askAI(senderId, senderName, question);
-    return sendMessage(chatId, '🤖 ' + reply + '\n\n━━━━━━━━━━━━━━━━━━\n' + DEV);
+    // Kiểm tra user có phòng nào đang chờ không
+    const existingA = await Pvp.findOne({ playerA: senderId, status: 'waiting' });
+    if (existingA) {
+      return sendMessage(chatId,
+        '⚠️ Bạn đang có phòng chờ!\n\n' +
+        '🆔 Mã phòng: ' + existingA.roomId + '\n' +
+        '💵 Cược: ' + formatMoney(existingA.amount) + '\n\n' +
+        '👉 Hủy: .huyphong\n\n' + DEV);
+    }
+
+    // Trừ tiền A
+    user.balance -= amount;
+    await user.save();
+
+    // Tạo mã phòng (thử tối đa 5 lần)
+    let roomId = null;
+    for (let i = 0; i < 5; i++) {
+      const tryId = genRoomId();
+      const existed = await Pvp.findOne({ roomId: tryId });
+      if (!existed) { roomId = tryId; break; }
+    }
+    if (!roomId) {
+      user.balance += amount;
+      await user.save();
+      return sendMessage(chatId, '❌ Không tạo được mã phòng, thử lại!\n\n' + DEV);
+    }
+
+    await Pvp.create({
+      roomId: roomId,
+      playerA: senderId,
+      playerAName: senderName,
+      amount: amount,
+      status: 'waiting'
+    });
+
+    return sendMessage(chatId,
+      '⚔️ ĐÃ TẠO PHÒNG PVP\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🆔 Mã phòng: ' + roomId + '\n' +
+      '💰 Cược: ' + formatMoney(amount) + '\n' +
+      '👤 Người tạo: ' + senderName + '\n' +
+      '⏳ Đang chờ đối thủ...\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '📤 Gửi mã này cho đối thủ:\n' +
+      '   Đối thủ gõ: .vao ' + roomId + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '⏰ Hủy phòng: .huyphong\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      DEV);
+}
+  // ===== ⚔️ PVP: VÀO PHÒNG =====
+if (cmd === '.vao' || cmd === '.joinpvp') {
+  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+  const parts = afterCmd.split(/\s+/);
+  if (parts.length < 1 || !parts[0]) {
+    return sendMessage(chatId, '❌ Cú pháp: .vao [mã phòng]\n\nVí dụ: .vao A1B2\n\n' + DEV);
   }
 
-  // ===== 🔄 .resetai — XÓA LỊCH SỬ CHAT AI =====
-  if (cmd === '.resetai' || cmd === '.clearai') {
-    const parts = text.split(/\s+/);
-    const target = isAdmin(senderId) && parts[1] ? parts[1] : senderId;
-    delete chatHistories[target];
-    delete lastAskTime[target];
-    return sendMessage(chatId, '✅ Đã xóa lịch sử chat AI!\n\n' + DEV);
+  const roomId = parts[0].toUpperCase();
+  const room = await Pvp.findOne({ roomId: roomId });
+
+  if (!room) return sendMessage(chatId, '❌ Không tìm thấy phòng: ' + roomId + '\n\n' + DEV);
+  if (room.status !== 'waiting') return sendMessage(chatId, '❌ Phòng này đã bắt đầu hoặc đã kết thúc!\n\n' + DEV);
+  if (room.playerA === senderId) return sendMessage(chatId, '❌ Bạn không thể tự vào phòng của mình!\n\n' + DEV);
+
+  if (user.balance < room.amount) {
+    return sendMessage(chatId,
+      '❌ Không đủ tiền để vào phòng!\n\n' +
+      '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+      '💸 Cần: ' + formatMoney(room.amount) + '\n\n' + DEV);
   }
-  // ===== .sut =====
+
+  // Trừ tiền B
+  user.balance -= room.amount;
+  await user.save();
+
+  room.playerB = senderId;
+  room.playerBName = senderName;
+  room.status = 'choosing';
+  await room.save();
+
+  // Thông báo cho A
+  await sendMessage(room.playerA,
+    '⚔️ ĐỐI THỦ ĐÃ VÀO PHÒNG!\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🆔 Mã phòng: ' + roomId + '\n' +
+    '👤 Đối thủ: ' + senderName + '\n' +
+    '💰 Tổng pot: ' + formatMoney(room.amount * 2) + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '👉 Chọn đi: .tai hoặc .xiu\n' +
+    '⏰ 60 giây để chọn\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    DEV);
+
+  // Thông báo cho B
+  await sendMessage(room.playerB,
+    '⚔️ BẠN ĐÃ VÀO PHÒNG PVP\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🆔 Mã phòng: ' + roomId + '\n' +
+    '👤 Đối thủ: ' + room.playerAName + '\n' +
+    '💰 Tổng pot: ' + formatMoney(room.amount * 2) + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '👉 Chọn đi: .tai hoặc .xiu\n' +
+    '⏰ 60 giây để chọn\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    DEV);
+
+  // Set timeout
+  if (pvpTimeouts[roomId]) clearTimeout(pvpTimeouts[roomId]);
+  pvpTimeouts[roomId] = setTimeout(function() {
+    handlePvpTimeout(roomId).catch(function(e) { console.error('PVP timeout lỗi:', e); });
+    delete pvpTimeouts[roomId];
+  }, PVP_TIMEOUT_MS);
+
+  return;
+}
+
+// ===== ⚔️ PVP: CHỌN TÀI =====
+if (cmd === '.tai' || cmd === '.tài') {
+  const room = await Pvp.findOne({
+    $or: [{ playerA: senderId }, { playerB: senderId }],
+    status: 'choosing'
+  });
+
+  if (!room) return sendMessage(chatId, '❌ Bạn không có phòng PVP đang chờ chọn!\n\n' + DEV);
+
+  const isA = room.playerA === senderId;
+  const currentChoice = isA ? room.choiceA : room.choiceB;
+
+  if (currentChoice !== null) {
+    return sendMessage(chatId,
+      '⚠️ Bạn đã chọn rồi!\n\n' +
+      '👉 Lựa chọn của bạn: ' + currentChoice + '\n' +
+      '⏳ Đợi đối thủ chọn...\n\n' + DEV);
+  }
+
+  if (isA) room.choiceA = 'Tài';
+  else room.choiceB = 'Tài';
+  await room.save();
+
+  await sendMessage(chatId,
+    '✅ ĐÃ CHỌN TÀI\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🆔 Phòng: ' + room.roomId + '\n' +
+    '🎯 Lựa chọn: 🔴 TÀI\n' +
+    '⏳ Đợi đối thủ chọn...\n' +
+    '━━━━━━━━━━━━━━━━━━\n' + DEV);
+
+  // Thông báo cho đối thủ
+  const opponentId = isA ? room.playerB : room.playerA;
+  const opponentName = isA ? room.playerBName : room.playerAName;
+  await sendMessage(opponentId,
+    '📢 ' + senderName + ' đã chọn xong!\n' +
+    '👉 Đến lượt bạn: .tai hoặc .xiu\n\n' + DEV);
+
+  // Nếu cả 2 đã chọn → resolve
+  if (room.choiceA !== null && room.choiceB !== null) {
+    await resolvePvp(room.roomId);
+  }
+  return;
+}
+
+// ===== ⚔️ PVP: CHỌN XỈU =====
+if (cmd === '.xiu' || cmd === '.xỉu') {
+  const room = await Pvp.findOne({
+    $or: [{ playerA: senderId }, { playerB: senderId }],
+    status: 'choosing'
+  });
+
+  if (!room) return sendMessage(chatId, '❌ Bạn không có phòng PVP đang chờ chọn!\n\n' + DEV);
+
+  const isA = room.playerA === senderId;
+  const currentChoice = isA ? room.choiceA : room.choiceB;
+
+  if (currentChoice !== null) {
+    return sendMessage(chatId,
+      '⚠️ Bạn đã chọn rồi!\n\n' +
+      '👉 Lựa chọn của bạn: ' + currentChoice + '\n' +
+      '⏳ Đợi đối thủ chọn...\n\n' + DEV);
+  }
+
+  if (isA) room.choiceA = 'Xỉu';
+  else room.choiceB = 'Xỉu';
+  await room.save();
+
+  await sendMessage(chatId,
+    '✅ ĐÃ CHỌN XỈU\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🆔 Phòng: ' + room.roomId + '\n' +
+    '🎯 Lựa chọn: 🔵 XỈU\n' +
+    '⏳ Đợi đối thủ chọn...\n' +
+    '━━━━━━━━━━━━━━━━━━\n' + DEV);
+
+  const opponentId = isA ? room.playerB : room.playerA;
+  await sendMessage(opponentId,
+    '📢 ' + senderName + ' đã chọn xong!\n' +
+    '👉 Đến lượt bạn: .tai hoặc .xiu\n\n' + DEV);
+
+  if (room.choiceA !== null && room.choiceB !== null) {
+    await resolvePvp(room.roomId);
+  }
+  return;
+}
+
+// ===== ⚔️ PVP: HỦY PHÒNG CHỜ =====
+if (cmd === '.huyphong' || cmd === '.cancelpvp') {
+  const room = await Pvp.findOne({ playerA: senderId, status: 'waiting' });
+  if (!room) return sendMessage(chatId, '❌ Bạn không có phòng chờ nào!\n\n' + DEV);
+
+  room.status = 'cancelled';
+  await room.save();
+
+  await User.updateOne({ userId: senderId }, { $inc: { balance: room.amount } });
+
+  return sendMessage(chatId,
+    '❌ ĐÃ HỦY PHÒNG\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🆔 Mã: ' + room.roomId + '\n' +
+    '💵 Hoàn: ' + formatMoney(room.amount) + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' + DEV);
+}
+
+// ===== ⚔️ PVP: XEM PHÒNG CHỜ =====
+if (cmd === '.phong' || cmd === '.dsphong' || cmd === '.roomlist') {
+  const waiting = await Pvp.find({ status: 'waiting' }).sort({ createdAt: -1 }).limit(10);
+  if (waiting.length === 0) {
+    return sendMessage(chatId, '📋 Không có phòng nào đang chờ!\n\nTạo phòng: .txpvp [tiền]\n\n' + DEV);
+  }
+  let t = '📋 PHÒNG ĐANG CHỜ (' + waiting.length + ')\n━━━━━━━━━━━━━━━━━━\n';
+  for (let i = 0; i < waiting.length; i++) {
+    const r = waiting[i];
+    t += '🆔 ' + r.roomId + ' | 💰 ' + formatMoney(r.amount) + '\n';
+    t += '👤 ' + r.playerAName + '\n';
+    t += '👉 .vao ' + r.roomId + '\n';
+    t += '━━━━━━━━━━━━━━━━━━\n';
+  }
+  t += DEV;
+  return sendMessage(chatId, t);
+}
+
+// ===== .sut =====
 if (cmd === '.sut' || cmd === '.sutbong') {
   if (activeGames[senderId]) {
     return sendMessage(chatId,
@@ -972,15 +1308,9 @@ if (cmd === '.sut' || cmd === '.sutbong') {
   if (position < 1 || position > 3 || isNaN(position)) {
     return sendMessage(chatId, '❌ Ô sút phải là 1, 2 hoặc 3!\n\n1 = Trái | 2 = Giữa | 3 = Phải\n\n' + DEV);
   }
-  if (isNaN(amount) || amount <= 0) {
-    return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
-  }
-  if (amount < MIN_BET) {
-    return sendMessage(chatId, '❌ Cược tối thiểu: ' + formatMoney(MIN_BET) + '\n\n' + DEV);
-  }
-  if (amount > MAX_BET) {
-    return sendMessage(chatId, '❌ Cược tối đa: ' + formatMoney(MAX_BET) + '\n\n' + DEV);
-  }
+  if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+  if (amount < MIN_BET) return sendMessage(chatId, '❌ Cược tối thiểu: ' + formatMoney(MIN_BET) + '\n\n' + DEV);
+  if (amount > MAX_BET) return sendMessage(chatId, '❌ Cược tối đa: ' + formatMoney(MAX_BET) + '\n\n' + DEV);
   if (user.balance < amount) {
     return sendMessage(chatId, '❌ Không đủ tiền!\n\n💵 Số dư: ' + formatMoney(user.balance) + '\n💸 Cần: ' + formatMoney(amount) + '\n\n' + DEV);
   }
@@ -999,12 +1329,10 @@ if (cmd === '.sut' || cmd === '.sutbong') {
   return;
 }
 
-// ===== .tiep — SÚT TIẾP (có thể chọn ô) =====
+// ===== .tiep =====
 if (cmd === '.tiep' || cmd === '.tieptuc') {
   const game = activeGames[senderId];
-  if (!game) {
-    return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
-  }
+  if (!game) return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
 
   const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
   const parts = afterCmd.split(/\s+/);
@@ -1023,12 +1351,10 @@ if (cmd === '.tiep' || cmd === '.tieptuc') {
   return;
 }
 
-// ===== .lay — NHẬN TIỀN =====
+// ===== .lay =====
 if (cmd === '.lay' || cmd === '.laytien' || cmd === '.cashout') {
   const game = activeGames[senderId];
-  if (!game) {
-    return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
-  }
+  if (!game) return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\nGõ .sut để bắt đầu.\n\n' + DEV);
 
   const currentLevel = game.level - 1;
   const rate = SUT_RATES[currentLevel - 1].rate;
@@ -1050,12 +1376,10 @@ if (cmd === '.lay' || cmd === '.laytien' || cmd === '.cashout') {
     DEV);
 }
 
-// ===== .huy — HỦY GAME =====
+// ===== .huy =====
 if (cmd === '.huy' || cmd === '.huygame') {
   const game = activeGames[senderId];
-  if (!game) {
-    return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\n' + DEV);
-  }
+  if (!game) return sendMessage(chatId, '❌ Bạn không có game nào đang chơi!\n\n' + DEV);
 
   delete activeGames[senderId];
   user.loseCount++;
@@ -1068,409 +1392,379 @@ if (cmd === '.huy' || cmd === '.huygame') {
     '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     DEV);
-}
+      }
+    // ===== .rut =====
+  if (cmd === '.rut' || cmd === '.ruttien') {
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
 
-// ===== .rut =====
-if (cmd === '.rut' || cmd === '.ruttien') {
-  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
-  const parts = afterCmd.split(/\s+/);
-
-  if (parts.length < 4) {
-    return sendMessage(chatId,
-      '💸 YÊU CẦU RÚT TIỀN\n' +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      '📌 Cú pháp:\n' +
-      '.rut [số tiền] [STK] [ngân hàng] [tên]\n\n' +
-      '📖 Ví dụ:\n' +
-      '.rut 50000 123456789 MBBANK DUONG QUOC BAO\n\n' +
-      '⚠️ Tối thiểu: 10.000 VNĐ\n' +
-      '⚠️ Số tiền tròn\n' +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      DEV);
-  }
-
-  const amount = parseInt(parts[0].replace(/[.,]/g, ''), 10);
-  const stk = parts[1];
-  const bank = parts[2];
-  const accountName = parts.slice(3).join(' ');
-
-  if (isNaN(amount) || amount <= 0) {
-    return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
-  }
-  if (amount < MIN_WITHDRAW) {
-    return sendMessage(chatId, '❌ Rút tối thiểu: ' + formatMoney(MIN_WITHDRAW) + '\n\n' + DEV);
-  }
-  if (amount > MAX_WITHDRAW) {
-    return sendMessage(chatId, '❌ Rút tối đa: ' + formatMoney(MAX_WITHDRAW) + '\n\n' + DEV);
-  }
-  if (amount % 10000 !== 0) {
-    return sendMessage(chatId, '❌ Số tiền phải là bội số của 10.000 VNĐ!\n\nVD: 10.000, 20.000, 50.000...\n\n' + DEV);
-  }
-  if (user.balance < amount) {
-    return sendMessage(chatId,
-      '❌ Không đủ tiền!\n\n' +
-      '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
-      '💸 Cần: ' + formatMoney(amount) + '\n\n' +
-      DEV);
-  }
-
-  const existingPending = await Withdraw.findOne({ userId: senderId, status: 'pending' });
-  if (existingPending) {
-    return sendMessage(chatId,
-      '⚠️ Bạn đã có yêu cầu rút đang chờ!\n\n' +
-      '🆔 Mã: ' + existingPending.wdId + '\n' +
-      '⏰ Đợi admin duyệt\n\n' +
-      DEV);
-  }
-
-  user.balance -= amount;
-  await user.save();
-
-  const newWdNum = await getNextWithdrawId();
-  const wdId = 'WD' + String(newWdNum).padStart(5, '0');
-
-  await Withdraw.create({
-    wdId: wdId,
-    userId: senderId,
-    userName: senderName,
-    amount: amount,
-    stk: stk,
-    bank: bank,
-    accountName: accountName,
-    status: 'pending'
-  });
-
-  const adminIds = ADMIN_IDS.filter(function(id) { return id; });
-  for (let i = 0; i < adminIds.length; i++) {
-    try {
-      await sendMessage(adminIds[i],
-        '💰 YÊU CẦU RÚT TIỀN MỚI\n' +
+    if (parts.length < 4) {
+      return sendMessage(chatId,
+        '💸 YÊU CẦU RÚT TIỀN\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
-        '🆔 Mã: ' + wdId + '\n' +
-        '👤 User: ' + senderName + '\n' +
-        '🆔 ID: ' + senderId + '\n' +
-        '💵 Số tiền: ' + formatMoney(amount) + '\n' +
-        '🏦 Ngân hàng: ' + bank + '\n' +
-        '💳 STK: ' + stk + '\n' +
-        '👤 Tên TK: ' + accountName + '\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        '👉 Duyệt: .duyetrut ' + wdId + '\n' +
-        '👉 Hủy: .huyrut ' + wdId + '\n' +
+        '📌 Cú pháp:\n' +
+        '.rut [số tiền] [STK] [ngân hàng] [tên]\n\n' +
+        '📖 Ví dụ:\n' +
+        '.rut 50000 123456789 MBBANK DUONG QUOC BAO\n\n' +
+        '⚠️ Tối thiểu: 10.000 VNĐ\n' +
+        '⚠️ Số tiền tròn\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
         DEV);
-    } catch (e) {}
-  }
+    }
 
-  if (NOTIFY_GROUP_ID) {
-    try {
-      await sendMessage(NOTIFY_GROUP_ID,
-        '💰 YÊU CẦU RÚT TIỀN MỚI\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        '👤 ' + senderName + '\n' +
-        '💵 Số tiền: ' + formatMoney(amount) + '\n' +
-        '🏦 Ngân hàng: ' + bank + '\n' +
-        '⏰ Đợi admin duyệt (0-120 phút)\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
+    const amount = parseInt(parts[0].replace(/[.,]/g, ''), 10);
+    const stk = parts[1];
+    const bank = parts[2];
+    const accountName = parts.slice(3).join(' ');
+
+    if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    if (amount < MIN_WITHDRAW) return sendMessage(chatId, '❌ Rút tối thiểu: ' + formatMoney(MIN_WITHDRAW) + '\n\n' + DEV);
+    if (amount > MAX_WITHDRAW) return sendMessage(chatId, '❌ Rút tối đa: ' + formatMoney(MAX_WITHDRAW) + '\n\n' + DEV);
+    if (amount % 10000 !== 0) return sendMessage(chatId, '❌ Số tiền phải là bội số của 10.000 VNĐ!\n\nVD: 10.000, 20.000, 50.000...\n\n' + DEV);
+    if (user.balance < amount) {
+      return sendMessage(chatId,
+        '❌ Không đủ tiền!\n\n' +
+        '💵 Số dư: ' + formatMoney(user.balance) + '\n' +
+        '💸 Cần: ' + formatMoney(amount) + '\n\n' +
         DEV);
-    } catch (e) {}
+    }
+
+    const existingPending = await Withdraw.findOne({ userId: senderId, status: 'pending' });
+    if (existingPending) {
+      return sendMessage(chatId,
+        '⚠️ Bạn đã có yêu cầu rút đang chờ!\n\n' +
+        '🆔 Mã: ' + existingPending.wdId + '\n' +
+        '⏰ Đợi admin duyệt\n\n' +
+        DEV);
+    }
+
+    user.balance -= amount;
+    await user.save();
+
+    const newWdNum = await getNextWithdrawId();
+    const wdId = 'WD' + String(newWdNum).padStart(5, '0');
+
+    await Withdraw.create({
+      wdId: wdId,
+      userId: senderId,
+      userName: senderName,
+      amount: amount,
+      stk: stk,
+      bank: bank,
+      accountName: accountName,
+      status: 'pending'
+    });
+
+    const adminIds = ADMIN_IDS.filter(function(id) { return id; });
+    for (let i = 0; i < adminIds.length; i++) {
+      try {
+        await sendMessage(adminIds[i],
+          '💰 YÊU CẦU RÚT TIỀN MỚI\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🆔 Mã: ' + wdId + '\n' +
+          '👤 User: ' + senderName + '\n' +
+          '🆔 ID: ' + senderId + '\n' +
+          '💵 Số tiền: ' + formatMoney(amount) + '\n' +
+          '🏦 Ngân hàng: ' + bank + '\n' +
+          '💳 STK: ' + stk + '\n' +
+          '👤 Tên TK: ' + accountName + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '👉 Duyệt: .duyetrut ' + wdId + '\n' +
+          '👉 Hủy: .huyrut ' + wdId + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+      } catch (e) {}
+    }
+
+    if (NOTIFY_GROUP_ID) {
+      try {
+        await sendMessage(NOTIFY_GROUP_ID,
+          '💰 YÊU CẦU RÚT TIỀN MỚI\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '👤 ' + senderName + '\n' +
+          '💵 Số tiền: ' + formatMoney(amount) + '\n' +
+          '🏦 Ngân hàng: ' + bank + '\n' +
+          '⏰ Đợi admin duyệt (0-120 phút)\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+      } catch (e) {}
+    }
+
+    return sendMessage(chatId,
+      '✅ ĐÃ GỬI YÊU CẦU RÚT TIỀN\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🆔 Mã: ' + wdId + '\n' +
+      '💵 Số tiền: ' + formatMoney(amount) + '\n' +
+      '🏦 Ngân hàng: ' + bank + '\n' +
+      '💳 STK: ' + stk + '\n' +
+      '👤 Tên TK: ' + accountName + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '⏰ Đợi admin duyệt (0-120 phút)\n' +
+      '💵 Số dư còn: ' + formatMoney(user.balance) + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      DEV);
   }
 
-  return sendMessage(chatId,
-    '✅ ĐÃ GỬI YÊU CẦU RÚT TIỀN\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    '🆔 Mã: ' + wdId + '\n' +
-    '💵 Số tiền: ' + formatMoney(amount) + '\n' +
-    '🏦 Ngân hàng: ' + bank + '\n' +
-    '💳 STK: ' + stk + '\n' +
-    '👤 Tên TK: ' + accountName + '\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    '⏰ Đợi admin duyệt (0-120 phút)\n' +
-    '💵 Số dư còn: ' + formatMoney(user.balance) + '\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    DEV);
-}
+  // ===== .lenhrut =====
+  if (cmd === '.lenhrut' || cmd === '.lsrut') {
+    const userWds = await Withdraw.find({ userId: senderId }).sort({ createdAt: -1 }).limit(10);
+    if (userWds.length === 0) return sendMessage(chatId, '📜 Bạn chưa có lệnh rút nào!\n\n' + DEV);
 
-// ===== .lenhrut =====
-if (cmd === '.lenhrut' || cmd === '.lsrut') {
-  const userWds = await Withdraw.find({ userId: senderId }).sort({ createdAt: -1 }).limit(10);
-
-  if (userWds.length === 0) {
-    return sendMessage(chatId, '📜 Bạn chưa có lệnh rút nào!\n\n' + DEV);
+    let t = '📜 LỊCH SỬ RÚT TIỀN\n━━━━━━━━━━━━━━━━━━\n';
+    for (let i = 0; i < userWds.length; i++) {
+      const wd = userWds[i];
+      const status = wd.status === 'pending' ? '⏳ Chờ duyệt' :
+                     wd.status === 'approved' ? '✅ Đã duyệt' : '❌ Đã hủy';
+      t += '🆔 ' + wd.wdId + '\n';
+      t += '💵 ' + formatMoney(wd.amount) + '\n';
+      t += '📌 ' + status + '\n';
+      t += '🏦 ' + wd.bank + ' - ' + wd.stk + '\n';
+      t += '⏰ ' + new Date(wd.createdAt).toLocaleString('vi-VN') + '\n\n';
+    }
+    t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
+    return sendMessage(chatId, t);
   }
 
-  let t = '📜 LỊCH SỬ RÚT TIỀN\n━━━━━━━━━━━━━━━━━━\n';
-  for (let i = 0; i < userWds.length; i++) {
-    const wd = userWds[i];
-    const status = wd.status === 'pending' ? '⏳ Chờ duyệt' :
-                   wd.status === 'approved' ? '✅ Đã duyệt' : '❌ Đã hủy';
-    t += '🆔 ' + wd.wdId + '\n';
-    t += '💵 ' + formatMoney(wd.amount) + '\n';
-    t += '📌 ' + status + '\n';
-    t += '🏦 ' + wd.bank + ' - ' + wd.stk + '\n';
-    t += '⏰ ' + new Date(wd.createdAt).toLocaleString('vi-VN') + '\n\n';
-  }
-
-  t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
-  return sendMessage(chatId, t);
-}
   // ===== ADMIN: .duyetrut =====
-if (cmd === '.duyetrut') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
-  const parts = afterCmd.split(/\s+/);
-  if (parts.length < 1) return sendMessage(chatId, '❌ Cú pháp: .duyetrut [mã WD]\n\n' + DEV);
+  if (cmd === '.duyetrut') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+    if (parts.length < 1) return sendMessage(chatId, '❌ Cú pháp: .duyetrut [mã WD]\n\n' + DEV);
 
-  const wdId = parts[0].toUpperCase();
-  const wd = await Withdraw.findOne({ wdId: wdId });
+    const wdId = parts[0].toUpperCase();
+    const wd = await Withdraw.findOne({ wdId: wdId });
+    if (!wd) return sendMessage(chatId, '❌ Không tìm thấy mã: ' + wdId + '\n\n' + DEV);
+    if (wd.status !== 'pending') return sendMessage(chatId, '❌ Yêu cầu này đã xử lý rồi!\n\n' + DEV);
 
-  if (!wd) return sendMessage(chatId, '❌ Không tìm thấy mã: ' + wdId + '\n\n' + DEV);
-  if (wd.status !== 'pending') return sendMessage(chatId, '❌ Yêu cầu này đã xử lý rồi!\n\n' + DEV);
+    wd.status = 'approved';
+    await wd.save();
 
-  wd.status = 'approved';
-  await wd.save();
+    const imgUrl = getWithdrawImage(wd.amount);
 
-  const imgUrl = getWithdrawImage(wd.amount);
-
-  try {
-    await sendPhoto(wd.userId, imgUrl,
-      '✅ RÚT TIỀN THÀNH CÔNG\n' +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      '🎉 ' + wd.userName + '\n' +
-      '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
-      '🏦 Ngân hàng: ' + wd.bank + '\n' +
-      '💳 STK: ' + wd.stk + '\n' +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      '⏰ Tiền sẽ vào TK trong 0-120 phút\n' +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      DEV);
-  } catch (e) {}
-
-  if (NOTIFY_GROUP_ID) {
     try {
-      await sendPhoto(NOTIFY_GROUP_ID, imgUrl,
+      await sendPhoto(wd.userId, imgUrl,
         '✅ RÚT TIỀN THÀNH CÔNG\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
         '🎉 ' + wd.userName + '\n' +
         '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
         '🏦 Ngân hàng: ' + wd.bank + '\n' +
+        '💳 STK: ' + wd.stk + '\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '⏰ Tiền sẽ vào TK trong 0-120 phút\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
         DEV);
     } catch (e) {}
+
+    if (NOTIFY_GROUP_ID) {
+      try {
+        await sendPhoto(NOTIFY_GROUP_ID, imgUrl,
+          '✅ RÚT TIỀN THÀNH CÔNG\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🎉 ' + wd.userName + '\n' +
+          '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
+          '🏦 Ngân hàng: ' + wd.bank + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+      } catch (e) {}
+    }
+
+    return sendMessage(chatId,
+      '✅ ĐÃ DUYỆT YÊU CẦU RÚT\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🆔 Mã: ' + wdId + '\n' +
+      '👤 User: ' + wd.userName + '\n' +
+      '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      DEV);
   }
 
-  return sendMessage(chatId,
-    '✅ ĐÃ DUYỆT YÊU CẦU RÚT\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    '🆔 Mã: ' + wdId + '\n' +
-    '👤 User: ' + wd.userName + '\n' +
-    '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    DEV);
-}
+  // ===== ADMIN: .huyrut =====
+  if (cmd === '.huyrut') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+    if (parts.length < 1) return sendMessage(chatId, '❌ Cú pháp: .huyrut [mã WD]\n\n' + DEV);
 
-// ===== ADMIN: .huyrut =====
-if (cmd === '.huyrut') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
-  const parts = afterCmd.split(/\s+/);
-  if (parts.length < 1) return sendMessage(chatId, '❌ Cú pháp: .huyrut [mã WD]\n\n' + DEV);
+    const wdId = parts[0].toUpperCase();
+    const wd = await Withdraw.findOne({ wdId: wdId });
+    if (!wd) return sendMessage(chatId, '❌ Không tìm thấy mã: ' + wdId + '\n\n' + DEV);
+    if (wd.status !== 'pending') return sendMessage(chatId, '❌ Yêu cầu này đã xử lý rồi!\n\n' + DEV);
 
-  const wdId = parts[0].toUpperCase();
-  const wd = await Withdraw.findOne({ wdId: wdId });
+    wd.status = 'cancelled';
+    await wd.save();
 
-  if (!wd) return sendMessage(chatId, '❌ Không tìm thấy mã: ' + wdId + '\n\n' + DEV);
-  if (wd.status !== 'pending') return sendMessage(chatId, '❌ Yêu cầu này đã xử lý rồi!\n\n' + DEV);
+    const wdUser = await User.findOne({ userId: wd.userId });
+    if (wdUser) {
+      wdUser.balance += wd.amount;
+      await wdUser.save();
+      try {
+        await sendMessage(wd.userId,
+          '❌ YÊU CẦU RÚT ĐÃ HỦY\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🆔 Mã: ' + wdId + '\n' +
+          '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
+          '💰 Đã hoàn lại vào số dư\n' +
+          '💵 Số dư: ' + formatMoney(wdUser.balance) + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          DEV);
+      } catch (e) {}
+    }
 
-  wd.status = 'cancelled';
-  await wd.save();
-
-  const wdUser = await User.findOne({ userId: wd.userId });
-  if (wdUser) {
-    wdUser.balance += wd.amount;
-    await wdUser.save();
-
-    try {
-      await sendMessage(wd.userId,
-        '❌ YÊU CẦU RÚT ĐÃ HỦY\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        '🆔 Mã: ' + wdId + '\n' +
-        '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
-        '💰 Đã hoàn lại vào số dư\n' +
-        '💵 Số dư: ' + formatMoney(wdUser.balance) + '\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        DEV);
-    } catch (e) {}
+    return sendMessage(chatId,
+      '❌ ĐÃ HỦY YÊU CẦU RÚT\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '🆔 Mã: ' + wdId + '\n' +
+      '👤 User: ' + wd.userName + '\n' +
+      '💰 Đã hoàn: ' + formatMoney(wd.amount) + '\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      DEV);
   }
 
-  if (NOTIFY_GROUP_ID) {
-    try {
-      await sendMessage(NOTIFY_GROUP_ID,
-        '❌ YÊU CẦU RÚT ĐÃ HỦY\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        '👤 ' + wd.userName + '\n' +
-        '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
-        '💰 Đã hoàn lại cho user\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        DEV);
-    } catch (e) {}
+  // ===== ADMIN: .dsrut =====
+  if (cmd === '.dsrut') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const pendingWds = await Withdraw.find({ status: 'pending' }).sort({ createdAt: -1 });
+    if (pendingWds.length === 0) return sendMessage(chatId, '📋 Không có yêu cầu rút nào đang chờ!\n\n' + DEV);
+
+    let t = '📋 YÊU CẦU RÚT ĐANG CHỜ (' + pendingWds.length + ')\n━━━━━━━━━━━━━━━━━━\n';
+    for (let i = 0; i < pendingWds.length && i < 10; i++) {
+      const wd = pendingWds[i];
+      t += '🆔 ' + wd.wdId + '\n';
+      t += '👤 ' + wd.userName + '\n';
+      t += '💵 ' + formatMoney(wd.amount) + '\n';
+      t += '🏦 ' + wd.bank + ' - ' + wd.stk + '\n';
+      t += '━━━━━━━━━━━━━━━━━━\n';
+    }
+    t += '👉 .duyetrut [mã] — Duyệt\n';
+    t += '👉 .huyrut [mã] — Hủy\n';
+    t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
+    return sendMessage(chatId, t);
   }
 
-  return sendMessage(chatId,
-    '❌ ĐÃ HỦY YÊU CẦU RÚT\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    '🆔 Mã: ' + wdId + '\n' +
-    '👤 User: ' + wd.userName + '\n' +
-    '💰 Đã hoàn: ' + formatMoney(wd.amount) + '\n' +
-    '━━━━━━━━━━━━━━━━━━\n' +
-    DEV);
-}
-
-// ===== ADMIN: .dsrut =====
-if (cmd === '.dsrut') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const pendingWds = await Withdraw.find({ status: 'pending' }).sort({ createdAt: -1 });
-
-  if (pendingWds.length === 0) {
-    return sendMessage(chatId, '📋 Không có yêu cầu rút nào đang chờ!\n\n' + DEV);
+  // ===== ADMIN: .congtien =====
+  if (cmd === '.congtien' || cmd === '.addmoney') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+    if (parts.length < 2) return sendMessage(chatId, '❌ Cú pháp: .congtien [id/tên] [tiền]\n\n' + DEV);
+    const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    const found = await findUser(parts[0]);
+    if (!found) return sendMessage(chatId, '❌ Không tìm thấy: ' + parts[0] + '\n\n' + DEV);
+    found.user.balance += amount;
+    await found.user.save();
+    return sendMessage(chatId, '✅ ĐÃ CỘNG TIỀN\n👤 ' + found.user.name + '\n💰 +' + formatMoney(amount) + '\n💵 Số dư: ' + formatMoney(found.user.balance) + '\n\n' + DEV);
   }
 
-  let t = '📋 YÊU CẦU RÚT ĐANG CHỜ (' + pendingWds.length + ')\n━━━━━━━━━━━━━━━━━━\n';
-  for (let i = 0; i < pendingWds.length && i < 10; i++) {
-    const wd = pendingWds[i];
-    t += '🆔 ' + wd.wdId + '\n';
-    t += '👤 ' + wd.userName + '\n';
-    t += '💵 ' + formatMoney(wd.amount) + '\n';
-    t += '🏦 ' + wd.bank + ' - ' + wd.stk + '\n';
-    t += '━━━━━━━━━━━━━━━━━━\n';
+  // ===== ADMIN: .trutien =====
+  if (cmd === '.trutien' || cmd === '.submoney') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+    if (parts.length < 2) return sendMessage(chatId, '❌ Cú pháp: .trutien [id/tên] [tiền]\n\n' + DEV);
+    const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    const found = await findUser(parts[0]);
+    if (!found) return sendMessage(chatId, '❌ Không tìm thấy: ' + parts[0] + '\n\n' + DEV);
+    found.user.balance -= amount;
+    if (found.user.balance < 0) found.user.balance = 0;
+    await found.user.save();
+    return sendMessage(chatId, '✅ ĐÃ TRỪ TIỀN\n👤 ' + found.user.name + '\n💸 -' + formatMoney(amount) + '\n💵 Số dư: ' + formatMoney(found.user.balance) + '\n\n' + DEV);
   }
-  t += '👉 .duyetrut [mã] — Duyệt\n';
-  t += '👉 .huyrut [mã] — Hủy\n';
-  t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
-  return sendMessage(chatId, t);
-}
 
-// ===== ADMIN: .congtien =====
-if (cmd === '.congtien' || cmd === '.addmoney') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
-  const parts = afterCmd.split(/\s+/);
-  if (parts.length < 2) return sendMessage(chatId, '❌ Cú pháp: .congtien [id/tên] [tiền]\n\n' + DEV);
-  const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
-  if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
-  const found = await findUser(parts[0]);
-  if (!found) return sendMessage(chatId, '❌ Không tìm thấy: ' + parts[0] + '\n\n' + DEV);
-  found.user.balance += amount;
-  await found.user.save();
-  return sendMessage(chatId, '✅ ĐÃ CỘNG TIỀN\n👤 ' + found.user.name + '\n💰 +' + formatMoney(amount) + '\n💵 Số dư: ' + formatMoney(found.user.balance) + '\n\n' + DEV);
-}
-
-// ===== ADMIN: .trutien =====
-if (cmd === '.trutien' || cmd === '.submoney') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
-  const parts = afterCmd.split(/\s+/);
-  if (parts.length < 2) return sendMessage(chatId, '❌ Cú pháp: .trutien [id/tên] [tiền]\n\n' + DEV);
-  const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
-  if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
-  const found = await findUser(parts[0]);
-  if (!found) return sendMessage(chatId, '❌ Không tìm thấy: ' + parts[0] + '\n\n' + DEV);
-  found.user.balance -= amount;
-  if (found.user.balance < 0) found.user.balance = 0;
-  await found.user.save();
-  return sendMessage(chatId, '✅ ĐÃ TRỪ TIỀN\n👤 ' + found.user.name + '\n💸 -' + formatMoney(amount) + '\n💵 Số dư: ' + formatMoney(found.user.balance) + '\n\n' + DEV);
-}
-
-// ===== ADMIN: .dattien =====
-if (cmd === '.dattien' || cmd === '.setmoney') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
-  const parts = afterCmd.split(/\s+/);
-  if (parts.length < 2) return sendMessage(chatId, '❌ Cú pháp: .dattien [id/tên] [tiền]\n\n' + DEV);
-  const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
-  if (isNaN(amount) || amount < 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
-  const found = await findUser(parts[0]);
-  if (!found) return sendMessage(chatId, '❌ Không tìm thấy: ' + parts[0] + '\n\n' + DEV);
-  found.user.balance = amount;
-  await found.user.save();
-  return sendMessage(chatId, '✅ ĐÃ ĐẶT SỐ DƯ\n👤 ' + found.user.name + '\n💵 ' + formatMoney(amount) + '\n\n' + DEV);
-}
-
-// ===== ADMIN: .congall =====
-if (cmd === '.congall' || cmd === '.addall') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
-  const parts = afterCmd.split(/\s+/);
-  if (parts.length < 1) return sendMessage(chatId, '❌ Cú pháp: .congall [tiền]\n\n' + DEV);
-  const amount = parseInt(parts[0].replace(/[.,]/g, ''), 10);
-  if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
-  const allUsers = await User.find();
-  for (let i = 0; i < allUsers.length; i++) {
-    allUsers[i].balance += amount;
-    await allUsers[i].save();
+  // ===== ADMIN: .dattien =====
+  if (cmd === '.dattien' || cmd === '.setmoney') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+    if (parts.length < 2) return sendMessage(chatId, '❌ Cú pháp: .dattien [id/tên] [tiền]\n\n' + DEV);
+    const amount = parseInt(parts[1].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount < 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    const found = await findUser(parts[0]);
+    if (!found) return sendMessage(chatId, '❌ Không tìm thấy: ' + parts[0] + '\n\n' + DEV);
+    found.user.balance = amount;
+    await found.user.save();
+    return sendMessage(chatId, '✅ ĐÃ ĐẶT SỐ DƯ\n👤 ' + found.user.name + '\n💵 ' + formatMoney(amount) + '\n\n' + DEV);
   }
-  return sendMessage(chatId, '✅ ĐÃ CỘNG ' + formatMoney(amount) + '\n👥 Cho ' + allUsers.length + ' người\n\n' + DEV);
-}
 
-// ===== ADMIN: .danhsach =====
-if (cmd === '.danhsach' || cmd === '.listusers') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const allUsers = await User.find().sort({ createdAt: -1 }).limit(20);
-  const total = await User.countDocuments();
-  if (allUsers.length === 0) return sendMessage(chatId, '📋 Chưa có người chơi nào!\n\n' + DEV);
-  let t = '📋 DANH SÁCH (' + total + ')\n━━━━━━━━━━━━━━━━━━\n';
-  for (let i = 0; i < allUsers.length; i++) {
-    const u = allUsers[i];
-    t += (i + 1) + '. ' + u.name + '\n   ID: ' + u.userId + '\n   💵 ' + formatMoney(u.balance) + '\n';
+  // ===== ADMIN: .congall =====
+  if (cmd === '.congall' || cmd === '.addall') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+    if (parts.length < 1) return sendMessage(chatId, '❌ Cú pháp: .congall [tiền]\n\n' + DEV);
+    const amount = parseInt(parts[0].replace(/[.,]/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) return sendMessage(chatId, '❌ Số tiền không hợp lệ!\n\n' + DEV);
+    const allUsers = await User.find();
+    for (let i = 0; i < allUsers.length; i++) {
+      allUsers[i].balance += amount;
+      await allUsers[i].save();
+    }
+    return sendMessage(chatId, '✅ ĐÃ CỘNG ' + formatMoney(amount) + '\n👥 Cho ' + allUsers.length + ' người\n\n' + DEV);
   }
-  if (total > 20) t += '\n... và ' + (total - 20) + ' người khác\n';
-  t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
-  return sendMessage(chatId, t);
-}
 
-// ===== ADMIN: .resetall =====
-if (cmd === '.resetall' || cmd === '.reset') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const allUsers = await User.find();
-  for (let i = 0; i < allUsers.length; i++) {
-    allUsers[i].balance = START_BALANCE;
-    allUsers[i].winCount = 0;
-    allUsers[i].loseCount = 0;
-    allUsers[i].totalBet = 0;
-    await allUsers[i].save();
+  // ===== ADMIN: .danhsach =====
+  if (cmd === '.danhsach' || cmd === '.listusers') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const allUsers = await User.find().sort({ createdAt: -1 }).limit(20);
+    const total = await User.countDocuments();
+    if (allUsers.length === 0) return sendMessage(chatId, '📋 Chưa có người chơi nào!\n\n' + DEV);
+    let t = '📋 DANH SÁCH (' + total + ')\n━━━━━━━━━━━━━━━━━━\n';
+    for (let i = 0; i < allUsers.length; i++) {
+      const u = allUsers[i];
+      t += (i + 1) + '. ' + u.name + '\n   ID: ' + u.userId + '\n   💵 ' + formatMoney(u.balance) + '\n';
+    }
+    if (total > 20) t += '\n... và ' + (total - 20) + ' người khác\n';
+    t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
+    return sendMessage(chatId, t);
   }
-  return sendMessage(chatId, '✅ ĐÃ RESET ' + allUsers.length + ' người\n💰 Số dư: ' + formatMoney(START_BALANCE) + '\n\n' + DEV);
-}
 
-// ===== ADMIN: .xoauser =====
-if (cmd === '.xoauser' || cmd === '.removeuser') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
-  const parts = afterCmd.split(/\s+/);
-  if (parts.length < 1) return sendMessage(chatId, '❌ Cú pháp: .xoauser [id/tên]\n\n' + DEV);
-  const found = await findUser(parts[0]);
-  if (!found) return sendMessage(chatId, '❌ Không tìm thấy: ' + parts[0] + '\n\n' + DEV);
-  const name = found.user.name;
-  await User.deleteOne({ userId: found.id });
-  return sendMessage(chatId, '🗑️ ĐÃ XÓA\n👤 ' + name + '\n🆔 ' + found.id + '\n\n' + DEV);
-}
-
-// ===== ADMIN: .thongbao =====
-if (cmd === '.thongbao' || cmd === '.broadcast') {
-  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
-  const keyword = cmd === '.thongbao' ? '.thongbao' : '.broadcast';
-  const content = text.substring(text.indexOf(keyword) + keyword.length).trim();
-  if (!content) return sendMessage(chatId, '❌ Cú pháp: .thongbao [nội dung]\n\n' + DEV);
-  const allUsers = await User.find();
-  let success = 0;
-  for (let i = 0; i < allUsers.length; i++) {
-    try {
-      await sendMessage(allUsers[i].userId, '📢 THÔNG BÁO\n━━━━━━━━━━━━━━━━━━\n' + content + '\n━━━━━━━━━━━━━━━━━━\n' + DEV);
-      success++;
-    } catch (e) {}
+  // ===== ADMIN: .resetall =====
+  if (cmd === '.resetall' || cmd === '.reset') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const allUsers = await User.find();
+    for (let i = 0; i < allUsers.length; i++) {
+      allUsers[i].balance = START_BALANCE;
+      allUsers[i].winCount = 0;
+      allUsers[i].loseCount = 0;
+      allUsers[i].totalBet = 0;
+      await allUsers[i].save();
+    }
+    return sendMessage(chatId, '✅ ĐÃ RESET ' + allUsers.length + ' người\n💰 Số dư: ' + formatMoney(START_BALANCE) + '\n\n' + DEV);
   }
-  return sendMessage(chatId, '✅ ĐÃ GỬI THÔNG BÁO\n👥 Cho ' + success + '/' + allUsers.length + ' người\n\n' + DEV);
-}
-    // ===== TÀI XỈU =====
+
+  // ===== ADMIN: .xoauser =====
+  if (cmd === '.xoauser' || cmd === '.removeuser') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
+    const parts = afterCmd.split(/\s+/);
+    if (parts.length < 1) return sendMessage(chatId, '❌ Cú pháp: .xoauser [id/tên]\n\n' + DEV);
+    const found = await findUser(parts[0]);
+    if (!found) return sendMessage(chatId, '❌ Không tìm thấy: ' + parts[0] + '\n\n' + DEV);
+    const name = found.user.name;
+    await User.deleteOne({ userId: found.id });
+    return sendMessage(chatId, '🗑️ ĐÃ XÓA\n👤 ' + name + '\n🆔 ' + found.id + '\n\n' + DEV);
+  }
+
+  // ===== ADMIN: .thongbao =====
+  if (cmd === '.thongbao' || cmd === '.broadcast') {
+    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Bạn không phải admin!\n\n' + DEV);
+    const keyword = cmd === '.thongbao' ? '.thongbao' : '.broadcast';
+    const content = text.substring(text.indexOf(keyword) + keyword.length).trim();
+    if (!content) return sendMessage(chatId, '❌ Cú pháp: .thongbao [nội dung]\n\n' + DEV);
+    const allUsers = await User.find();
+    let success = 0;
+    for (let i = 0; i < allUsers.length; i++) {
+      try {
+        await sendMessage(allUsers[i].userId, '📢 THÔNG BÁO\n━━━━━━━━━━━━━━━━━━\n' + content + '\n━━━━━━━━━━━━━━━━━━\n' + DEV);
+        success++;
+      } catch (e) {}
+    }
+    return sendMessage(chatId, '✅ ĐÃ GỬI THÔNG BÁO\n👥 Cho ' + success + '/' + allUsers.length + ' người\n\n' + DEV);
+  }
+
+  // ===== TÀI XỈU (vs bot) =====
   if (cmd === '.tx') {
     const lowerText = text.toLowerCase();
     const txIndex = lowerText.indexOf('.tx');
@@ -1512,7 +1806,7 @@ app.post('/webhook', async function(req, res) {
 
 // ===== HEALTH CHECK =====
 app.get('/', function(req, res) {
-  res.send('Bot Tài Xỉu OK! | MongoDB | AI | ' + DEV);
+  res.send('Bot Tài Xỉu PvP OK! | MongoDB | ' + DEV);
 });
 
 // ===== KHỞI ĐỘNG =====

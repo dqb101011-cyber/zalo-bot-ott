@@ -1462,21 +1462,42 @@ if (cmd === '.lenhrut' || cmd === '.lsrut') {
   return sendMessage(chatId, t);
   }
     if (cmd === '.duyetrut') {
-    if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Không phải admin!\n\n' + DEV);
-    const parts = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim().split(/\s+/);
-    if (parts.length < 1) return sendMessage(chatId, '❌ .duyetrut [mã]\n\n' + DEV);
-    const wdId = parts[0].toUpperCase();
-    const wd = await Withdraw.findOne({ wdId: wdId });
-    if (!wd) return sendMessage(chatId, '❌ Không tìm thấy!\n\n' + DEV);
-    if (wd.status !== 'pending') return sendMessage(chatId, '❌ Đã xử lý!\n\n' + DEV);
-    wd.status = 'approved';
-    await wd.save();
-    try {
-      await sendPhoto(wd.userId, getWithdrawImage(wd.amount),
-        '✅ RÚT THÀNH CÔNG\n🎉 ' + wd.userName + '\n💵 ' + formatMoney(wd.amount) + '\n🏦 ' + wd.bank + '\n💳 ' + wd.stk + '\n⏰ 0-120 phút\n\n' + DEV);
-    } catch (e) {}
-    return sendMessage(chatId, '✅ ĐÃ DUYỆT ' + wdId + '\n💵 ' + formatMoney(wd.amount) + '\n\n' + DEV);
+  if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Không phải admin!\n\n' + DEV);
+  const parts = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim().split(/\s+/);
+  if (parts.length < 1) return sendMessage(chatId, '❌ .duyetrut [mã]\n\n' + DEV);
+  const wdId = parts[0].toUpperCase();
+  const wd = await Withdraw.findOne({ wdId: wdId });
+  if (!wd) return sendMessage(chatId, '❌ Không tìm thấy!\n\n' + DEV);
+  if (wd.status !== 'pending') return sendMessage(chatId, '❌ Đã xử lý!\n\n' + DEV);
+
+  wd.status = 'approved';
+  await wd.save();
+
+  const caption =
+    '✅ RÚT TIỀN THÀNH CÔNG\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '🆔 Mã: ' + wdId + '\n' +
+    '🎉 ' + wd.userName + '\n' +
+    '💵 Số tiền: ' + formatMoney(wd.amount) + '\n' +
+    '🏦 Ngân hàng: ' + wd.bank + '\n' +
+    '💳 STK: ' + wd.stk + '\n' +
+    '👤 Tên TK: ' + wd.accountName + '\n' +
+    '━━━━━━━━━━━━━━━━━━\n' + DEV;
+
+  const imgUrl = getWithdrawImage(wd.amount);
+
+  // Gửi cho user
+  try {
+    await sendPhoto(wd.userId, imgUrl, caption);
+  } catch (e) {
+    console.error('Lỗi gửi ảnh cho user:', e.message);
   }
+
+  // ✨ Gửi vào GROUP
+  await notifyGroupPhoto(imgUrl, caption);
+
+  return sendMessage(chatId, '✅ ĐÃ DUYỆT ' + wdId + '\n💵 ' + formatMoney(wd.amount) + '\n\n' + DEV);
+    }
 
   if (cmd === '.huyrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Không phải admin!\n\n' + DEV);

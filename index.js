@@ -593,7 +593,7 @@ body{width:800px;height:560px;background:linear-gradient(135deg,#1a1a2e 0%,#1621
 }
 
 function getHelpText() {
-  return '🎰 ĐỎ HAY ĐEN 🎰\n' +
+  return '🎰 RED OR BLACK 🎰\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     '💰 LỆNH CHUNG:\n' +
     '• .sodu — Xem số dư\n' +
@@ -616,8 +616,7 @@ function getHelpText() {
     '• .tai / .xiu — Chọn trong phòng\n' +
     '• .huyphong — Hủy phòng chờ\n' +
     '• .phong — Xem phòng chờ\n' +
-    '💸 Phí trung gian: 4,9%\n' +
-    '🤝 Bot chỉ làm trọng tài\n' +
+    '• Bot chỉ là trung gian 🤝\n' +
     '\n ✈️ MÁY BAY AVIATOR: \n' +
     '• .aviator — Mở web game\n' +
     '\n⚽ GAME SÚT BÓNG:\n' +

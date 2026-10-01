@@ -487,7 +487,11 @@ function calcPvpPayout(potAmount) {
   return { fee: fee, payout: payout };
 }
 
-// ===== TẠO ẢNH PVP (APIFLASH - POST) =====
+charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+  body {
+    width: 80// ===== TẠO ẢNH PVP (APIFLASH - POST) =====
 async function generatePvpResultImage(room, game, isTie) {
   if (!APIFLASH_KEY) {
     console.log('⚠️ Chưa cấu hình APIFLASH_KEY');
@@ -518,11 +522,7 @@ async function generatePvpResultImage(room, game, isTie) {
   const html = `<!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
-  body {
-    width: 800px; height: 560px;
+<meta 0px; height: 560px;
     background: #1a1a2e;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     padding: 25px; color: #fff;
@@ -586,60 +586,76 @@ async function generatePvpResultImage(room, game, isTie) {
 </style>
 </head>
 <body>
-  <div class="header">
-    <h1>⚔️ KẾT QUẢ PVP ⚔️</h1>
-    <div class="room">Phòng #${room.roomId}</div>
-  </div>
+// ===== TẠO ẢNH PVP (APIFLASH - GET + HTML RÚT GỌN) =====
+async function generatePvpResultImage(room, game, isTie) {
+  if (!APIFLASH_KEY) {
+    console.log('⚠️ Chưa cấu hình APIFLASH_KEY');
+    return null;
+  }
 
-  <div class="players">
-    <div class="player a">
-      <div class="label">🅰️</div>
-      <div class="name">${room.playerAName}</div>
-      <div class="choice ${room.choiceA === 'Tài' ? 'tai' : room.choiceA === 'Xỉu' ? 'xiu' : 'none'}">
-        ${room.choiceA === 'Tài' ? '🔴 ' : room.choiceA === 'Xỉu' ? '🔵 ' : ''}${room.choiceA || 'Không chọn'}
-      </div>
-    </div>
-    <div class="vs">VS</div>
-    <div class="player b">
-      <div class="label">🅱️</div>
-      <div class="name">${room.playerBName}</div>
-      <div class="choice ${room.choiceB === 'Tài' ? 'tai' : room.choiceB === 'Xỉu' ? 'xiu' : 'none'}">
-        ${room.choiceB === 'Tài' ? '🔴 ' : room.choiceB === 'Xỉu' ? '🔵 ' : ''}${room.choiceB || 'Không chọn'}
-      </div>
-    </div>
-  </div>
+  const diceEmoji = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+  const diceStr = diceEmoji[game.dice[0] - 1] + diceEmoji[game.dice[1] - 1] + diceEmoji[game.dice[2] - 1];
 
-  <div class="result-box">
-    <div class="dice">${diceStr}</div>
-    <div class="total">Tổng = <b>${game.total}</b></div>
-    <div class="result">${game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU'}</div>
-  </div>
+  const isAWin = !isTie && room.choiceA === game.result;
+  const isBWin = !isTie && room.choiceB === game.result;
 
-  <div class="winner ${winnerClass}">
-    ${winnerText}
-  </div>
+  let winnerText, winnerColor;
+  if (isTie) { winnerText = 'HÒA - HOÀN TIỀN'; winnerColor = '#ddd'; }
+  else if (isAWin) { winnerText = room.playerAName + ' THẮNG!'; winnerColor = '#ff6b6b'; }
+  else { winnerText = room.playerBName + ' THẮNG!'; winnerColor = '#5dade2'; }
 
-  <div class="footer">${DEV}</div>
-</body>
-</html>`;
+  const rColor = game.result === 'Tài' ? '#e74c3c' : '#3498db';
+  const rBg = game.result === 'Tài' ? '#fff5f5' : '#f0f8ff';
+  const aBg = room.choiceA === 'Tài' ? '#e74c3c' : room.choiceA === 'Xỉu' ? '#3498db' : '#555';
+  const bBg = room.choiceB === 'Tài' ? '#e74c3c' : room.choiceB === 'Xỉu' ? '#3498db' : '#555';
+
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+    '*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}' +
+    'body{width:800px;height:560px;background:#16213e;padding:20px;color:#fff}' +
+    '.h{text-align:center;margin-bottom:15px}' +
+    '.h h1{font-size:28px;color:#f39c12}' +
+    '.h .r{font-size:14px;color:#aaa;margin-top:5px}' +
+    '.p{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}' +
+    '.u{flex:1;padding:15px;background:rgba(255,255,255,0.08);border-radius:15px;text-align:center;min-height:150px}' +
+    '.u.a{border-left:6px solid #e74c3c}.u.b{border-right:6px solid #3498db}' +
+    '.u .l{font-size:26px;margin-bottom:5px}' +
+    '.u .n{font-size:18px;font-weight:bold;margin-bottom:10px;word-break:break-word}' +
+    '.u .c{display:inline-block;padding:6px 20px;border-radius:20px;font-size:16px;font-weight:bold;color:#fff}' +
+    '.vs{font-size:28px;font-weight:bold;color:#f39c12;padding:0 12px}' +
+    '.rb{background:' + rBg + ';color:#333;padding:15px;border-radius:15px;text-align:center;margin-bottom:15px}' +
+    '.rb .d{font-size:38px;letter-spacing:6px;margin-bottom:5px}' +
+    '.rb .t{font-size:16px;color:#555;margin-bottom:5px}' +
+    '.rb .r{font-size:28px;font-weight:bold;color:' + rColor + '}' +
+    '.w{background:rgba(243,156,18,0.2);border:2px solid ' + winnerColor + ';border-radius:12px;padding:12px;text-align:center;font-size:20px;font-weight:bold;color:' + winnerColor + '}' +
+    '.f{text-align:center;font-size:11px;color:#555;margin-top:10px}' +
+    '</style></head><body>' +
+    '<div class="h"><h1>⚔️ KẾT QUẢ PVP ⚔️</h1><div class="r">Phòng #' + room.roomId + '</div></div>' +
+    '<div class="p">' +
+    '<div class="u a"><div class="l">🅰️</div><div class="n">' + room.playerAName + '</div>' +
+    '<div class="c" style="background:' + aBg + '">' + (room.choiceA || 'Không chọn') + '</div></div>' +
+    '<div class="vs">VS</div>' +
+    '<div class="u b"><div class="l">🅱️</div><div class="n">' + room.playerBName + '</div>' +
+    '<div class="c" style="background:' + bBg + '">' + (room.choiceB || 'Không chọn') + '</div></div>' +
+    '</div>' +
+    '<div class="rb"><div class="d">' + diceStr + '</div><div class="t">Tổng = <b>' + game.total + '</b></div>' +
+    '<div class="r">' + (game.result === 'Tài' ? '🔴 TÀI' : '🔵 XỈU') + '</div></div>' +
+    '<div class="w">🏆 ' + winnerText + '</div>' +
+    '<div class="f">' + DEV + '</div>' +
+    '</body></html>';
 
   try {
-    const formData = new URLSearchParams();
-    formData.append('access_key', APIFLASH_KEY);
-    formData.append('html', html);
-    formData.append('viewport_width', '800');
-    formData.append('viewport_height', '560');
-    formData.append('format', 'png');
-    formData.append('response_type', 'json');
-    formData.append('wait_until', 'page_loaded');
-
-    const res = await axios.post('https://api.apiflash.com/v1/urltoimage',
-      formData.toString(),
-      {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 30000
-      }
-    );
+    const res = await axios.get('https://api.apiflash.com/v1/urltoimage', {
+      params: {
+        access_key: APIFLASH_KEY,
+        html: html,
+        viewport_width: 800,
+        viewport_height: 560,
+        format: 'png',
+        response_type: 'json',
+        wait_until: 'page_loaded'
+      },
+      timeout: 30000
+    });
     console.log('✅ Đã tạo ảnh ApiFlash:', res.data.url);
     return res.data.url;
   } catch (err) {

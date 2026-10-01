@@ -12,6 +12,7 @@ const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(function(id) { re
 const NOTIFY_GROUP_ID = process.env.NOTIFY_GROUP_ID || '';
 
 const SCREENSHOTONE_KEY = process.env.SCREENSHOTONE_KEY || '';
+const IMGBB_KEY = process.env.IMGBB_KEY || '';
 
 const DEV = 'Dev by Dương Quốc Bảo';
 const START_BALANCE = 0;
@@ -487,10 +488,10 @@ function calcPvpPayout(potAmount) {
   return { fee: fee, payout: payout };
 }
 
-// ===== TẠO ẢNH PVP (SCREENSHOTONE) =====
+// ===== TẠO ẢNH + UPLOAD IMGBB =====
 async function generatePvpResultImage(room, game, isTie) {
-  if (!SCREENSHOTONE_KEY) {
-    console.log('⚠️ Chưa cấu hình SCREENSHOTONE_KEY');
+  if (!SCREENSHOTONE_KEY || !IMGBB_KEY) {
+    console.log('⚠️ Chưa cấu hình SCREENSHOTONE_KEY hoặc IMGBB_KEY');
     return null;
   }
 
@@ -550,21 +551,41 @@ body{width:800px;height:560px;background:linear-gradient(135deg,#1a1a2e 0%,#1621
 </body></html>`;
 
   try {
-    const res = await axios.get('https://api.screenshotone.com/take', {
+    // Bước 1: Tạo ảnh từ ScreenshotOne (nhận PNG buffer)
+    console.log('⏳ Đang tạo ảnh ScreenshotOne...');
+    const imgRes = await axios.get('https://api.screenshotone.com/take', {
       params: {
         access_key: SCREENSHOTONE_KEY,
         html: html,
         viewport_width: 800,
         viewport_height: 560,
-        format: 'png',
-        response_type: 'json'
+        format: 'png'
       },
-      timeout: 30000
+      responseType: 'arraybuffer',
+      timeout: 45000
     });
-    console.log('✅ Đã tạo ảnh ScreenshotOne:', res.data.url || res.data);
-    return res.data.url || res.data;
+    console.log('✅ Đã tạo ảnh ScreenshotOne, size:', imgRes.data.length, 'bytes');
+
+    // Bước 2: Upload lên ImgBB
+    console.log('⏳ Đang upload ImgBB...');
+    const base64 = Buffer.from(imgRes.data).toString('base64');
+    const formData = new URLSearchParams();
+    formData.append('key', IMGBB_KEY);
+    formData.append('image', base64);
+
+    const uploadRes = await axios.post('https://api.imgbb.com/1/upload',
+      formData.toString(),
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 45000
+      }
+    );
+
+    const finalUrl = uploadRes.data.data.url;
+    console.log('✅ Đã upload ImgBB:', finalUrl);
+    return finalUrl;
   } catch (err) {
-    console.error('Lỗi ScreenshotOne:', err.response ? err.response.data : err.message);
+    console.error('Lỗi tạo/upload ảnh:', err.response ? err.response.data : err.message);
     return null;
   }
 }
@@ -1026,15 +1047,17 @@ async function handleMessage(update) {
   }
 
   if (cmd === '.test') {
-    if (!SCREENSHOTONE_KEY) {
+    if (!SCREENSHOTONE_KEY || !IMGBB_KEY) {
       return sendMessage(chatId,
-        '❌ CHƯA CẤU HÌNH SCREENSHOTONE\n' +
+        '❌ CHƯA CẤU HÌNH API\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
-        '📌 Cần thêm biến SCREENSHOTONE_KEY trên Render\n' +
+        '📌 Cần thêm vào Render:\n' +
+        '• SCREENSHOTONE_KEY = ' + (SCREENSHOTONE_KEY ? '✅' : '❌') + '\n' +
+        '• IMGBB_KEY = ' + (IMGBB_KEY ? '✅' : '❌') + '\n' +
         '━━━━━━━━━━━━━━━━━━\n' + DEV);
     }
 
-    await sendMessage(chatId, '⏳ Đang tạo ảnh test...');
+    await sendMessage(chatId, '⏳ Đang tạo ảnh test (30-60s)...');
 
     const fakeRoom = {
       roomId: 'TEST',
@@ -1052,21 +1075,19 @@ async function handleMessage(update) {
       if (imgUrl) {
         await sendPhoto(chatId, imgUrl,
           '✅ TEST THÀNH CÔNG!\n━━━━━━━━━━━━━━━━━━\n' +
-          '🎨 Ảnh từ ScreenshotOne\n🔗 URL: ' + imgUrl + '\n' +
+          '🎨 Ảnh đã upload ImgBB\n🔗 URL: ' + imgUrl + '\n' +
           '━━━━━━━━━━━━━━━━━━\n💡 API hoạt động tốt!\n' + DEV);
       } else {
         await sendMessage(chatId,
           '❌ TẠO ẢNH THẤT BẠI\n━━━━━━━━━━━━━━━━━━\n' +
-          '🔍 Kiểm tra:\n' +
-          '1. SCREENSHOTONE_KEY đúng chưa?\n' +
-          '2. Còn quota không?\n' +
-          '━━━━━━━━━━━━━━━━━━\n💡 Xem log Render\n' + DEV);
+          '🔍 Kiểm tra log Render để biết chi tiết\n' +
+          '━━━━━━━━━━━━━━━━━━\n' + DEV);
       }
     } catch (err) {
       await sendMessage(chatId, '❌ LỖI: ' + err.message + '\n\n💡 Xem log Render\n\n' + DEV);
     }
     return;
-    }
+  }
   if (cmd === '.trogiup' || cmd === '.help') return sendMessage(chatId, getHelpText());
 if (cmd === '.sodu' || cmd === '.bal' || cmd === '.balance') return sendMessage(chatId, getBalText(user));
 if (cmd === '.toi' || cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user));
@@ -1437,7 +1458,7 @@ if (cmd === '.lenhrut' || cmd === '.lsrut') {
   }
   t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
   return sendMessage(chatId, t);
-}
+  }
     if (cmd === '.duyetrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Không phải admin!\n\n' + DEV);
     const parts = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim().split(/\s+/);
@@ -1630,7 +1651,7 @@ app.post('/webhook', async function(req, res) {
 });
 
 app.get('/', function(req, res) {
-  res.send('Bot PvP OK! | ScreenshotOne | ' + DEV);
+  res.send('Bot PvP OK! | ScreenshotOne + ImgBB | ' + DEV);
 });
 
 const PORT = process.env.PORT || 3000;

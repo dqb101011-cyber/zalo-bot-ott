@@ -11,9 +11,8 @@ const BASE_URL = `https://bot-api.zaloplatforms.com/bot${BOT_TOKEN}`;
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(function(id) { return id.trim(); });
 const NOTIFY_GROUP_ID = process.env.NOTIFY_GROUP_ID || '';
 
-// ===== HCTI (tạo ảnh) =====
-const HCTI_USER_ID = process.env.HCTI_USER_ID || '';
-const HCTI_API_KEY = process.env.HCTI_API_KEY || '';
+// ===== APIFLASH (tạo ảnh) =====
+const APIFLASH_KEY = process.env.APIFLASH_KEY || '';
 
 const DEV = 'Dev by Dương Quốc Bảo';
 const START_BALANCE = 0;
@@ -23,9 +22,9 @@ const MIN_WITHDRAW = 10000;
 const MAX_WITHDRAW = 5000000;
 
 // ===== PVP CONFIG =====
-const PVP_FEE_RATE = 0.049;              // 4,9% phí trung gian
-const PVP_TIMEOUT_MS = 60000;            // 60 giây chọn
-const PVP_CONFIRM_TIMEOUT_MS = 300000;   // 5 phút xác nhận
+const PVP_FEE_RATE = 0.049;
+const PVP_TIMEOUT_MS = 60000;
+const PVP_CONFIRM_TIMEOUT_MS = 300000;
 const pvpTimeouts = {};
 
 const WITHDRAW_IMAGES = {
@@ -86,7 +85,7 @@ const userSchema = new mongoose.Schema({
   loseCount: { type: Number, default: 0 },
   totalBet: { type: Number, default: 0 },
   canReceiveDM: { type: Boolean, default: false },
-  cancelCount: { type: Number, default: 0 },  // đếm số lần bỏ cuộc PvP
+  cancelCount: { type: Number, default: 0 },
   createdAt: { type: Number, default: Date.now }
 });
 const User = mongoose.model('User', userSchema);
@@ -494,10 +493,10 @@ function calcPvpPayout(potAmount) {
   return { fee: fee, payout: payout };
 }
 
-// ===== TẠO ẢNH KẾT QUẢ PVP =====
+// ===== TẠO ẢNH PVP (APIFLASH) =====
 async function generatePvpResultImage(room, game, isTie) {
-  if (!HCTI_USER_ID || !HCTI_API_KEY) {
-    console.log('⚠️ Chưa cấu hình HCTI');
+  if (!APIFLASH_KEY) {
+    console.log('⚠️ Chưa cấu hình APIFLASH_KEY');
     return null;
   }
 
@@ -522,29 +521,28 @@ async function generatePvpResultImage(room, game, isTie) {
   const resultColor = game.result === 'Tài' ? '#e74c3c' : '#3498db';
   const resultBg = game.result === 'Tài' ? '#fff5f5' : '#f0f8ff';
 
-  const html = `
-<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', 'Roboto', Arial, sans-serif; }
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
   body {
     width: 800px; height: 560px;
+    background: #1a1a2e;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     padding: 25px; color: #fff;
   }
   .header { text-align: center; margin-bottom: 20px; }
   .header h1 {
     font-size: 30px; color: #f39c12;
-    text-shadow: 0 0 15px rgba(243,156,18,0.6);
     letter-spacing: 2px;
   }
   .header .room { font-size: 14px; color: #aaa; margin-top: 5px; }
   .players { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
   .player {
     flex: 1; padding: 15px;
-    background: rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.08);
     border-radius: 15px; text-align: center;
     border: 2px solid rgba(255,255,255,0.1);
     min-height: 160px;
@@ -555,7 +553,6 @@ async function generatePvpResultImage(room, game, isTie) {
   .player .name {
     font-size: 20px; font-weight: bold;
     margin-bottom: 12px; color: #fff;
-    word-break: break-word; line-height: 1.2;
   }
   .player .choice {
     display: inline-block;
@@ -578,7 +575,7 @@ async function generatePvpResultImage(room, game, isTie) {
   .result-box .total { font-size: 18px; margin-bottom: 5px; color: #555; }
   .result-box .result {
     font-size: 32px; font-weight: bold;
-    color: ${resultColor}; letter-spacing: 2px;
+    color: ${resultColor};
   }
   .winner {
     background: rgba(243,156,18,0.2);
@@ -630,25 +627,24 @@ async function generatePvpResultImage(room, game, isTie) {
 
   <div class="footer">${DEV}</div>
 </body>
-</html>
-  `;
+</html>`;
 
   try {
-    const auth = Buffer.from(HCTI_USER_ID + ':' + HCTI_API_KEY).toString('base64');
-    const res = await axios.post('https://hcti.io/v1/image', {
-      html: html,
-      viewport_width: 800,
-      viewport_height: 560
-    }, {
-      headers: {
-        'Authorization': 'Basic ' + auth,
-        'Content-Type': 'application/json'
-      }
+    const res = await axios.get('https://api.apiflash.com/v1/urltoimage', {
+      params: {
+        access_key: APIFLASH_KEY,
+        html: html,
+        viewport_width: 800,
+        viewport_height: 560,
+        format: 'png',
+        response_type: 'json'
+      },
+      timeout: 30000
     });
-    console.log('✅ Đã tạo ảnh:', res.data.url);
+    console.log('✅ Đã tạo ảnh ApiFlash:', res.data.url);
     return res.data.url;
   } catch (err) {
-    console.error('Lỗi tạo ảnh:', err.response ? err.response.data : err.message);
+    console.error('Lỗi ApiFlash:', err.response ? err.response.data : err.message);
     return null;
   }
 }
@@ -666,16 +662,19 @@ function getHelpText() {
     '• .rut — Rút tiền\n' +
     '• .lenhrut — Lịch sử rút\n' +
     '• .xacnhan — Kích hoạt nhận DM\n' +
+    '• .test — Test tạo ảnh\n' +
     '\n 🎲 TÀI XỈU: \n' +
     '• .tx tài 10000 — Cược Tài\n' +
     '• .tx xỉu 10000 — Cược Xỉu\n' +
     '\n⚔️ TÀI XỈU PVP (MINH BẠCH):\n' +
     '• .txpvp [tiền] — Tạo phòng\n' +
     '• .vao [mã] — Vào phòng\n' +
-    '• .xacnhan — NHẮN RIÊNG cho bot để tham gia\n' +
-    '• .tai / .xiu — NHẮN RIÊNG cho bot khi có phòng\n' +
+    '• .xacnhan — Xác nhận tham gia\n' +
+    '• .tai / .xiu — Chọn trong phòng\n' +
     '• .huyphong — Hủy phòng chờ\n' +
     '• .phong — Xem phòng chờ\n' +
+    '💸 Phí trung gian: 4,9%\n' +
+    '🤝 Bot chỉ làm trọng tài\n' +
     '\n ✈️ MÁY BAY AVIATOR: \n' +
     '• .aviator — Mở web game\n' +
     '\n⚽ GAME SÚT BÓNG:\n' +
@@ -870,8 +869,8 @@ async function playShot(chatId, user, position) {
   return sendMessage(chatId,
     '✅ VÀO! Lần ' + currentLevel + '/9\n💰 ' + formatMoney(currentAmount) + ' (x' + nextRate + ')\n' +
     '👉 .tiep / .lay\n\n' + DEV);
-      }
-// ===== PVP: HẾT GIỜ CHỌN → HỦY + HOÀN TIỀN (BOT KHÔNG XỬ THUA) =====
+    }
+// ===== PVP: HẾT GIỜ CHỌN → HỦY + HOÀN TIỀN =====
 async function handlePvpTimeout(roomId) {
   const room = await Pvp.findOne({ roomId: roomId });
   if (!room || room.status !== 'choosing') return;
@@ -880,7 +879,6 @@ async function handlePvpTimeout(roomId) {
   const BChosen = room.choiceB !== null;
   if (AChosen && BChosen) return;
 
-  // HOÀN TIỀN CẢ 2 — không xử thua
   await User.updateOne({ userId: room.playerA }, { $inc: { balance: room.amount, cancelCount: 1 } });
   await User.updateOne({ userId: room.playerB }, { $inc: { balance: room.amount, cancelCount: 1 } });
 
@@ -901,7 +899,7 @@ async function handlePvpTimeout(roomId) {
     '🅰️ ' + room.playerAName + ': +' + formatMoney(room.amount) + '\n' +
     '🅱️ ' + room.playerBName + ': +' + formatMoney(room.amount) + '\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
-    '🤝 Bot là trọng tài công bằng — không phán thắng thua khi thiếu dữ liệu\n' +
+    '🤝 Bot là trọng tài công bằng\n' +
     '━━━━━━━━━━━━━━━━━━\n' + DEV;
 
   await sendDM(room.playerA, msg);
@@ -953,7 +951,7 @@ async function resolvePvp(roomId) {
   const pot = room.amount * 2;
   const r = calcPvpPayout(pot);
 
-  // ===== CẢ 2 CHỌN GIỐNG → HÒA → HOÀN TIỀN =====
+  // HÒA
   if (room.choiceA === room.choiceB) {
     await User.updateOne({ userId: room.playerA }, { $inc: { balance: room.amount } });
     await User.updateOne({ userId: room.playerB }, { $inc: { balance: room.amount } });
@@ -989,7 +987,7 @@ async function resolvePvp(roomId) {
     return;
   }
 
-  // ===== CÓ THẮNG/THUA =====
+  // CÓ THẮNG/THUA
   let winnerId, winnerName, loserId, loserName;
   if (room.choiceA === game.result) {
     winnerId = room.playerA; winnerName = room.playerAName;
@@ -1108,11 +1106,67 @@ async function handleMessage(update) {
   if (cmd === '.start') {
     return sendMessage(chatId,
       '👋 CHÀO MỪNG!\n━━━━━━━━━━━━━━━━━━\n' +
-      '✅ Bạn đã kích hoạt nhận \n' +
+      '✅ Bạn đã kích hoạt nhận DM\n' +
       '📩 Từ giờ bot có thể gửi tin riêng\n\n' +
       '📖 .trogiup\n━━━━━━━━━━━━━━━━━━\n' + DEV);
-                         }
-  if (cmd === '.trogiup' || cmd === '.help') return sendMessage(chatId, getHelpText());
+  }
+
+  // ===== .test =====
+  if (cmd === '.test') {
+    if (!APIFLASH_KEY) {
+      return sendMessage(chatId,
+        '❌ CHƯA CẤU HÌNH APIFLASH\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '📌 Cần thêm biến APIFLASH_KEY trên Render\n' +
+        '━━━━━━━━━━━━━━━━━━\n' + DEV);
+    }
+
+    await sendMessage(chatId, '⏳ Đang tạo ảnh test...');
+
+    const fakeRoom = {
+      roomId: 'TEST',
+      playerAName: senderName,
+      playerBName: 'Người chơi B',
+      choiceA: 'Tài',
+      choiceB: 'Xỉu',
+      amount: 10000
+    };
+
+    const fakeGame = {
+      dice: [5, 5, 6],
+      total: 16,
+      result: 'Tài'
+    };
+
+    try {
+      const imgUrl = await generatePvpResultImage(fakeRoom, fakeGame, false);
+      if (imgUrl) {
+        await sendPhoto(chatId, imgUrl,
+          '✅ TEST THÀNH CÔNG!\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🎨 Ảnh được tạo từ ApiFlash\n' +
+          '🔗 URL: ' + imgUrl + '\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '💡 API hoạt động tốt!\n' + DEV);
+      } else {
+        await sendMessage(chatId,
+          '❌ TẠO ẢNH THẤT BẠI\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '🔍 Kiểm tra:\n' +
+          '1. APIFLASH_KEY đúng chưa?\n' +
+          '2. Còn quota không?\n' +
+          '━━━━━━━━━━━━━━━━━━\n' +
+          '💡 Xem log Render\n' + DEV);
+      }
+    } catch (err) {
+      await sendMessage(chatId,
+        '❌ LỖI: ' + err.message + '\n\n' +
+        '💡 Xem log Render\n\n' + DEV);
+    }
+    return;
+                                              }
+  // ===== LỆNH USER =====
+if (cmd === '.trogiup' || cmd === '.help') return sendMessage(chatId, getHelpText());
 if (cmd === '.sodu' || cmd === '.bal' || cmd === '.balance') return sendMessage(chatId, getBalText(user));
 if (cmd === '.toi' || cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user));
 if (cmd === '.bxh' || cmd === '.top') { const t = await getTopText(); return sendMessage(chatId, t); }
@@ -1122,7 +1176,7 @@ if (cmd === '.id') {
   return sendMessage(chatId, '🆔 ID CỦA BẠN\n━━━━━━━━━━━━━━━━━━\n📛 ' + senderName + '\n🆔 ' + senderId + '\n━━━━━━━━━━━━━━━━━━\n' + DEV);
 }
 
-// ===== .xacnhan — KÍCH HOẠT DM + XÁC NHẬN PVP =====
+// ===== .xacnhan =====
 if (cmd === '.xacnhan') {
   user.canReceiveDM = true;
   await user.save();
@@ -1166,66 +1220,7 @@ if (cmd === '.aviator' || cmd === '.mb' || cmd === '.game') {
   return sendMessage(chatId, '🛫 AVIATOR\n━━━━━━━━━━━━━━━━━━\n👉 ĐANG BẢO TRÌ\n━━━━━━━━━━━━━━━━━━\n' + DEV);
 }
 
-// ===== .test — TEST TẠO ẢNH HCTI =====
-if (cmd === '.test') {
-  if (!HCTI_USER_ID || !HCTI_API_KEY) {
-    return sendMessage(chatId,
-      '❌ CHƯA CẤU HÌNH HCTI\n' +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      '📌 Cần thêm vào Render Environment:\n' +
-      '• HCTI_USER_ID = ' + (HCTI_USER_ID || '(trống)') + '\n' +
-      '• HCTI_API_KEY = ' + (HCTI_API_KEY ? '(đã có)' : '(trống)') + '\n' +
-      '━━━━━━━━━━━━━━━━━━\n' + DEV);
-  }
-
-  await sendMessage(chatId, '⏳ Đang tạo ảnh test...');
-
-  const fakeRoom = {
-    roomId: 'TEST',
-    playerAName: senderName,
-    playerBName: 'Người chơi B',
-    choiceA: 'Tài',
-    choiceB: 'Xỉu',
-    amount: 10000
-  };
-
-  const fakeGame = {
-    dice: [5, 5, 6],
-    total: 16,
-    result: 'Tài'
-  };
-
-  try {
-    const imgUrl = await generatePvpResultImage(fakeRoom, fakeGame, false);
-    if (imgUrl) {
-      await sendPhoto(chatId, imgUrl,
-        '✅ TEST THÀNH CÔNG!\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        '🎨 Ảnh được tạo từ HCTI\n' +
-        '🔗 URL: ' + imgUrl + '\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        '💡 API HCTI hoạt động tốt!\n' + DEV);
-    } else {
-      await sendMessage(chatId,
-        '❌ TẠO ẢNH THẤT BẠI\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        '🔍 Kiểm tra:\n' +
-        '1. HCTI_USER_ID đúng chưa?\n' +
-        '2. HCTI_API_KEY đúng chưa?\n' +
-        '3. Còn quota không?\n' +
-        '━━━━━━━━━━━━━━━━━━\n' +
-        '💡 Xem log Render để debug\n' + DEV);
-    }
-  } catch (err) {
-    await sendMessage(chatId,
-      '❌ LỖI: ' + err.message + '\n\n' +
-      '💡 Xem log Render\n\n' + DEV);
-  }
-  return;
-}
-  
-  
-// ===== ⚔️ PVP: TẠO PHÒNG =====
+// ===== PVP: TẠO PHÒNG =====
 if (cmd === '.txpvp' || cmd === '.pvp') {
   const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
   const parts = afterCmd.split(/\s+/);
@@ -1296,7 +1291,7 @@ if (cmd === '.txpvp' || cmd === '.pvp') {
     '━━━━━━━━━━━━━━━━━━\n' + DEV);
 }
 
-// ===== ⚔️ PVP: VÀO PHÒNG =====
+// ===== PVP: VÀO PHÒNG =====
 if (cmd === '.vao' || cmd === '.joinpvp') {
   const afterCmd = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim();
   const parts = afterCmd.split(/\s+/);
@@ -1329,7 +1324,7 @@ if (cmd === '.vao' || cmd === '.joinpvp') {
     '━━━━━━━━━━━━━━━━━━\n' + DEV);
 }
 
-// ===== ⚔️ PVP: HỦY PHÒNG =====
+// ===== PVP: HỦY PHÒNG =====
 if (cmd === '.huyphong' || cmd === '.cancelpvp') {
   const room = await Pvp.findOne({ playerA: senderId, status: 'pending_confirm' });
   if (!room) return sendMessage(chatId, '❌ Không có phòng chờ nào!\n\n' + DEV);
@@ -1348,7 +1343,7 @@ if (cmd === '.huyphong' || cmd === '.cancelpvp') {
   return sendMessage(chatId, '❌ ĐÃ HỦY PHÒNG #' + room.roomId + '\n💵 Hoàn: ' + formatMoney(room.amount) + '\n\n' + DEV);
 }
 
-// ===== ⚔️ PVP: XEM PHÒNG =====
+// ===== PVP: XEM PHÒNG =====
 if (cmd === '.phong' || cmd === '.dsphong' || cmd === '.roomlist') {
   const waiting = await Pvp.find({ status: 'pending_confirm' }).sort({ createdAt: -1 }).limit(10);
   if (waiting.length === 0) return sendMessage(chatId, '📋 Không có phòng chờ!\n\nTạo: .txpvp [tiền]\n\n' + DEV);
@@ -1361,7 +1356,7 @@ if (cmd === '.phong' || cmd === '.dsphong' || cmd === '.roomlist') {
   return sendMessage(chatId, t);
 }
 
-// ===== ⚔️ PVP: CHỌN TÀI =====
+// ===== PVP: CHỌN TÀI =====
 if (cmd === '.tai' || cmd === '.tài') {
   const room = await Pvp.findOne({ $or: [{ playerA: senderId }, { playerB: senderId }], status: 'choosing' });
   if (!room) return sendMessage(chatId, '❌ Không có phòng PvP đang chờ chọn!\n\n' + DEV);
@@ -1385,7 +1380,7 @@ if (cmd === '.tai' || cmd === '.tài') {
   return;
 }
 
-// ===== ⚔️ PVP: CHỌN XỈU =====
+// ===== PVP: CHỌN XỈU =====
 if (cmd === '.xiu' || cmd === '.xỉu') {
   const room = await Pvp.findOne({ $or: [{ playerA: senderId }, { playerB: senderId }], status: 'choosing' });
   if (!room) return sendMessage(chatId, '❌ Không có phòng PvP đang chờ chọn!\n\n' + DEV);
@@ -1551,7 +1546,7 @@ if (cmd === '.lenhrut' || cmd === '.lsrut') {
   t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
   return sendMessage(chatId, t);
     }
-    // ===== ADMIN: .duyetrut =====
+    // ===== ADMIN =====
   if (cmd === '.duyetrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Không phải admin!\n\n' + DEV);
     const parts = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim().split(/\s+/);
@@ -1746,7 +1741,7 @@ app.post('/webhook', async function(req, res) {
 });
 
 app.get('/', function(req, res) {
-  res.send('Bot PvP OK! | MongoDB | ' + DEV);
+  res.send('Bot PvP OK! | ApiFlash | ' + DEV);
 });
 
 const PORT = process.env.PORT || 3000;

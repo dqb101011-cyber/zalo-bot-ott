@@ -487,106 +487,7 @@ function calcPvpPayout(potAmount) {
   return { fee: fee, payout: payout };
 }
 
-charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
-  body {
-    width: 80// ===== TẠO ẢNH PVP (APIFLASH - POST) =====
-async function generatePvpResultImage(room, game, isTie) {
-  if (!APIFLASH_KEY) {
-    console.log('⚠️ Chưa cấu hình APIFLASH_KEY');
-    return null;
-  }
-
-  const diceEmoji = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-  const diceStr = diceEmoji[game.dice[0] - 1] + ' ' + diceEmoji[game.dice[1] - 1] + ' ' + diceEmoji[game.dice[2] - 1];
-
-  const isAWin = !isTie && room.choiceA === game.result;
-  const isBWin = !isTie && room.choiceB === game.result;
-
-  let winnerText, winnerClass;
-  if (isTie) {
-    winnerText = '⚠️ HÒA — HOÀN TIỀN CẢ 2';
-    winnerClass = 'tie';
-  } else if (isAWin) {
-    winnerText = '🏆 ' + room.playerAName + ' THẮNG!';
-    winnerClass = 'a';
-  } else {
-    winnerText = '🏆 ' + room.playerBName + ' THẮNG!';
-    winnerClass = 'b';
-  }
-
-  const resultColor = game.result === 'Tài' ? '#e74c3c' : '#3498db';
-  const resultBg = game.result === 'Tài' ? '#fff5f5' : '#f0f8ff';
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta 0px; height: 560px;
-    background: #1a1a2e;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    padding: 25px; color: #fff;
-  }
-  .header { text-align: center; margin-bottom: 20px; }
-  .header h1 {
-    font-size: 30px; color: #f39c12;
-    letter-spacing: 2px;
-  }
-  .header .room { font-size: 14px; color: #aaa; margin-top: 5px; }
-  .players { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  .player {
-    flex: 1; padding: 15px;
-    background: rgba(255,255,255,0.08);
-    border-radius: 15px; text-align: center;
-    border: 2px solid rgba(255,255,255,0.1);
-    min-height: 160px;
-  }
-  .player.a { border-left: 6px solid #e74c3c; }
-  .player.b { border-right: 6px solid #3498db; }
-  .player .label { font-size: 28px; margin-bottom: 5px; }
-  .player .name {
-    font-size: 20px; font-weight: bold;
-    margin-bottom: 12px; color: #fff;
-  }
-  .player .choice {
-    display: inline-block;
-    padding: 8px 24px; border-radius: 20px;
-    font-size: 18px; font-weight: bold;
-  }
-  .choice.tai { background: #e74c3c; color: #fff; }
-  .choice.xiu { background: #3498db; color: #fff; }
-  .choice.none { background: #555; color: #ccc; }
-  .vs { font-size: 32px; font-weight: bold; color: #f39c12; padding: 0 15px; }
-  .result-box {
-    background: ${resultBg}; color: #333;
-    padding: 18px; border-radius: 15px;
-    text-align: center; margin-bottom: 15px;
-  }
-  .result-box .dice {
-    font-size: 42px; margin-bottom: 5px;
-    color: #333; letter-spacing: 8px;
-  }
-  .result-box .total { font-size: 18px; margin-bottom: 5px; color: #555; }
-  .result-box .result {
-    font-size: 32px; font-weight: bold;
-    color: ${resultColor};
-  }
-  .winner {
-    background: rgba(243,156,18,0.2);
-    border: 2px solid #f39c12;
-    border-radius: 12px;
-    padding: 15px; text-align: center;
-    font-size: 22px; font-weight: bold;
-    color: #f39c12;
-  }
-  .winner.a { background: rgba(231,76,60,0.2); border-color: #e74c3c; color: #ff6b6b; }
-  .winner.b { background: rgba(52,152,219,0.2); border-color: #3498db; color: #5dade2; }
-  .winner.tie { background: rgba(150,150,150,0.2); border-color: #999; color: #ddd; }
-  .footer { text-align: center; font-size: 12px; color: #555; margin-top: 12px; }
-</style>
-</head>
-<body>
-// ===== TẠO ẢNH PVP (APIFLASH - GET + HTML RÚT GỌN) =====
+// ===== TẠO ẢNH PVP (APIFLASH - HTML RÚT GỌN) =====
 async function generatePvpResultImage(room, game, isTie) {
   if (!APIFLASH_KEY) {
     console.log('⚠️ Chưa cấu hình APIFLASH_KEY');
@@ -619,7 +520,7 @@ async function generatePvpResultImage(room, game, isTie) {
     '.u{flex:1;padding:15px;background:rgba(255,255,255,0.08);border-radius:15px;text-align:center;min-height:150px}' +
     '.u.a{border-left:6px solid #e74c3c}.u.b{border-right:6px solid #3498db}' +
     '.u .l{font-size:26px;margin-bottom:5px}' +
-    '.u .n{font-size:18px;font-weight:bold;margin-bottom:10px;word-break:break-word}' +
+    '.u .n{font-size:18px;font-weight:bold;margin-bottom:10px}' +
     '.u .c{display:inline-block;padding:6px 20px;border-radius:20px;font-size:16px;font-weight:bold;color:#fff}' +
     '.vs{font-size:28px;font-weight:bold;color:#f39c12;padding:0 12px}' +
     '.rb{background:' + rBg + ';color:#333;padding:15px;border-radius:15px;text-align:center;margin-bottom:15px}' +
@@ -884,7 +785,7 @@ async function playShot(chatId, user, position) {
   return sendMessage(chatId,
     '✅ VÀO! Lần ' + currentLevel + '/9\n💰 ' + formatMoney(currentAmount) + ' (x' + nextRate + ')\n' +
     '👉 .tiep / .lay\n\n' + DEV);
-                                }
+}
 async function handlePvpTimeout(roomId) {
   const room = await Pvp.findOne({ roomId: roomId });
   if (!room || room.status !== 'choosing') return;
@@ -1120,7 +1021,6 @@ async function handleMessage(update) {
       '📖 .trogiup\n━━━━━━━━━━━━━━━━━━\n' + DEV);
   }
 
-  // ===== .test =====
   if (cmd === '.test') {
     if (!APIFLASH_KEY) {
       return sendMessage(chatId,
@@ -1173,7 +1073,7 @@ async function handleMessage(update) {
         '💡 Xem log Render\n\n' + DEV);
     }
     return;
-      }
+    }
   if (cmd === '.trogiup' || cmd === '.help') return sendMessage(chatId, getHelpText());
 if (cmd === '.sodu' || cmd === '.bal' || cmd === '.balance') return sendMessage(chatId, getBalText(user));
 if (cmd === '.toi' || cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user));

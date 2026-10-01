@@ -559,7 +559,9 @@ body{width:800px;height:560px;background:linear-gradient(135deg,#1a1a2e 0%,#1621
         html: html,
         viewport_width: 800,
         viewport_height: 560,
-        format: 'png'
+        format: 'jpg',
+        image_quality: 60,
+        device_scale_factor: 1
       },
       responseType: 'arraybuffer',
       timeout: 45000

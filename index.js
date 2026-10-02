@@ -21,9 +21,6 @@ const MAX_BET = 50000;
 const MIN_WITHDRAW = 10000;
 const MAX_WITHDRAW = 5000000;
 
-// ✨ Tỉ lệ thắng 40%
-const WIN_RATE = 0.4;
-
 const PVP_FEE_RATE = 0.049;
 const PVP_TIMEOUT_MS = 60000;
 const PVP_CONFIRM_TIMEOUT_MS = 300000;
@@ -52,10 +49,6 @@ function getWithdrawImage(amount) {
 }
 
 const activeGames = {};
-
-mongoose.connect(MONGODB_URI)
-  .then(function() { console.log('✅ Đã kết nối MongoDB'); })
-  .catch(function(err) { console.error('❌ Lỗi MongoDB:', err.message); });
 
 const userSchema = new mongoose.Schema({
   userId: { type: String, unique: true, required: true },
@@ -124,6 +117,34 @@ const pvpSchema = new mongoose.Schema({
   createdAt: { type: Number, default: Date.now }
 });
 const Pvp = mongoose.model('Pvp', pvpSchema);
+
+// ✨ Config schema cho winrate (admin chỉnh)
+const configSchema = new mongoose.Schema({
+  key: { type: String, unique: true },
+  value: String
+});
+const Config = mongoose.model('Config', configSchema);
+
+// Tỉ lệ thắng động — mặc định 40%
+let currentWinRate = 0.4;
+
+mongoose.connect(MONGODB_URI)
+  .then(async function() {
+    console.log('✅ Đã kết nối MongoDB');
+    try {
+      const cfg = await Config.findOne({ key: 'winrate' });
+      if (cfg) {
+        currentWinRate = parseFloat(cfg.value);
+        console.log('✅ Đã load winrate:', currentWinRate);
+      } else {
+        await Config.create({ key: 'winrate', value: '0.4' });
+        console.log('✅ Khởi tạo winrate: 0.4');
+      }
+    } catch (e) {
+      console.error('Lỗi load winrate:', e.message);
+    }
+  })
+  .catch(function(err) { console.error('❌ Lỗi MongoDB:', err.message); });
 
 async function getNextSessionId() {
   const counter = await Counter.findOneAndUpdate(
@@ -423,24 +444,19 @@ async function sendDMPhoto(userId, url, caption) {
   return await sendPhoto(userId, url, caption);
 }
 
-// ✨ Lắc xúc xắc THẬT nhưng điều chỉnh kết quả theo WIN_RATE
 function playTaiXiuRigged(choice) {
-  // 40% cơ hội user thắng
-  const userWins = Math.random() < WIN_RATE;
+  const userWins = Math.random() < currentWinRate;
 
   let dice, total, result;
 
   if (userWins) {
-    // User thắng → tạo kết quả khớp với choice
     if (choice === 'Tài') {
-      // Tổng >= 11
       do {
         dice = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
         total = dice[0] + dice[1] + dice[2];
       } while (total < 11);
       result = 'Tài';
     } else {
-      // Tổng <= 10
       do {
         dice = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
         total = dice[0] + dice[1] + dice[2];
@@ -448,7 +464,6 @@ function playTaiXiuRigged(choice) {
       result = 'Xỉu';
     }
   } else {
-    // User thua → kết quả ngược lại
     if (choice === 'Tài') {
       do {
         dice = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
@@ -467,7 +482,6 @@ function playTaiXiuRigged(choice) {
   return { dice: dice, total: total, result: result };
 }
 
-// Lắc xúc xắc thật (dùng cho PvP)
 function playTaiXiu() {
   const dice = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
   const total = dice[0] + dice[1] + dice[2];
@@ -506,7 +520,6 @@ function calcPvpPayout(potAmount) {
   return { fee: fee, payout: payout };
 }
 
-// ===== TẠO ẢNH + UPLOAD IMGBB =====
 async function generatePvpResultImage(room, game, isTie) {
   if (!SCREENSHOTONE_KEY || !IMGBB_KEY) {
     console.log('⚠️ Chưa cấu hình SCREENSHOTONE_KEY hoặc IMGBB_KEY');
@@ -624,13 +637,15 @@ function getHelpText() {
     '\n 🎲 TÀI XỈU: \n' +
     '• .tx tài 10000 — Cược Tài\n' +
     '• .tx xỉu 10000 — Cược Xỉu\n' +
-    '\n⚔️ TÀI XỈU PVP (1 thắng - 1 thua):\n' +
+    '\n⚔️ TÀI XỈU PVP (MINH BẠCH):\n' +
     '• .txpvp [tiền] — Tạo phòng\n' +
     '• .vao [mã] — Vào phòng\n' +
     '• .xacnhan — Xác nhận tham gia\n' +
     '• .tai / .xiu — Chọn trong phòng\n' +
     '• .huyphong — Hủy phòng chờ\n' +
     '• .phong — Xem phòng chờ\n' +
+    '💸 Phí trung gian: 4,9%\n' +
+    '🤝 Bot chỉ làm trọng tài\n' +
     '\n📖 Gõ .menu để xem lại\n' +
     '━━━━━━━━━━━━━━━━━━\n' + DEV;
 }
@@ -695,7 +710,6 @@ async function handleBet(chatId, user, choice, amount) {
   amount = Math.floor(amount);
   if (amount < MIN_BET) return sendMessage(chatId, '❌ Cược tối thiểu: ' + formatMoney(MIN_BET) + '\n\n' + DEV);
   if (amount > MAX_BET) return sendMessage(chatId, '❌ Cược tối đa: ' + formatMoney(MAX_BET) + '\n\n' + DEV);
-  if (user.balance < amount) return sendMessage(chatId, '❌ Không đủ tiền!\n💵 ' + formatMoney(user.balance) + '\n\n' + DEV);
 
   const freshUser = await User.findOne({ userId: user.userId });
   if (!freshUser) return sendMessage(chatId, '❌ Lỗi user!\n\n' + DEV);
@@ -743,7 +757,7 @@ async function handleBet(chatId, user, choice, amount) {
       '💸 Mất: -' + formatMoney(amount) + '\n💵 Số dư: ' + formatMoney(freshUser.balance) + '\n' +
       '━━━━━━━━━━━━━━━━━━\n' + DEV);
   }
-    }
+      }
 async function handlePvpTimeout(roomId) {
   const room = await Pvp.findOne({ roomId: roomId });
   if (!room || room.status !== 'choosing') return;
@@ -982,6 +996,57 @@ async function handleMessage(update) {
   const cmd = extractCommand(text);
   if (!cmd) return;
 
+  // ===== LỆNH ẨN ADMIN: .winrate =====
+  // Chỉ admin + chat riêng. User thường hoặc trong group → báo "Lệnh không hợp lệ"
+  if (cmd === '.winrate') {
+    if (isGroup || !isAdmin(senderId)) {
+      return sendMessage(chatId, '❓ Lệnh không hợp lệ!\n\nGõ .menu\n\n' + DEV);
+    }
+
+    const parts = text.split(/\s+/);
+    if (parts.length < 2 || !parts[1]) {
+      return sendMessage(chatId,
+        '🎯 TỈ LỆ THẮNG HIỆN TẠI\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '📊 Tỉ lệ: ' + (currentWinRate * 100).toFixed(0) + '%\n' +
+        '━━━━━━━━━━━━━━━━━━\n' +
+        '📌 Cách đổi:\n' +
+        '.winrate [số 0-100]\n\n' +
+        '📖 Ví dụ:\n' +
+        '.winrate 40 — User thắng 40%\n' +
+        '.winrate 30 — User thắng 30%\n' +
+        '.winrate 0 — Không bao giờ thắng\n' +
+        '.winrate 100 — Luôn thắng\n' +
+        '━━━━━━━━━━━━━━━━━━\n' + DEV);
+    }
+
+    let rate = parseInt(parts[1], 10);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      return sendMessage(chatId, '❌ Tỉ lệ phải là số từ 0 đến 100!\n\n' + DEV);
+    }
+
+    currentWinRate = rate / 100;
+
+    try {
+      await Config.findOneAndUpdate(
+        { key: 'winrate' },
+        { value: String(currentWinRate) },
+        { upsert: true, new: true }
+      );
+    } catch (e) {
+      console.error('Lỗi lưu winrate:', e.message);
+    }
+
+    return sendMessage(chatId,
+      '.' +
+      '✅ ĐÃ ĐẶT TỈ LỆ THẮNG\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '📊 Tỉ lệ mới: ' + rate + '%\n' +
+      '💾 Đã lưu vào DB\n' +
+      '⚡ Áp dụng NGAY cho ván tiếp theo\n' +
+      '━━━━━━━━━━━━━━━━━━\n' + DEV);
+  }
+
   if (cmd === '.start') {
     return sendMessage(chatId,
       '👋 CHÀO MỪNG!\n━━━━━━━━━━━━━━━━━━\n' +
@@ -989,8 +1054,7 @@ async function handleMessage(update) {
       '📩 Từ giờ bot có thể gửi tin riêng\n\n' +
       '📖 .menu\n━━━━━━━━━━━━━━━━━━\n' + DEV);
     }
-  // ✨ .menu / .help / .trogiup GỘP LÀM 1
-if (cmd === '.menu' || cmd === '.help' || cmd === '.trogiup') return sendMessage(chatId, getHelpText());
+  if (cmd === '.menu' || cmd === '.help' || cmd === '.trogiup') return sendMessage(chatId, getHelpText());
 if (cmd === '.sodu' || cmd === '.bal' || cmd === '.balance') return sendMessage(chatId, getBalText(user));
 if (cmd === '.toi' || cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user));
 if (cmd === '.bxh' || cmd === '.top') { const t = await getTopText(); return sendMessage(chatId, t); }

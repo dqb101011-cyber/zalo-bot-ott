@@ -624,15 +624,13 @@ function getHelpText() {
     '\n 🎲 TÀI XỈU: \n' +
     '• .tx tài 10000 — Cược Tài\n' +
     '• .tx xỉu 10000 — Cược Xỉu\n' +
-    '\n⚔️ TÀI XỈU PVP (MINH BẠCH):\n' +
+    '\n⚔️ TÀI XỈU PVP (1 thắng - 1 thua):\n' +
     '• .txpvp [tiền] — Tạo phòng\n' +
     '• .vao [mã] — Vào phòng\n' +
     '• .xacnhan — Xác nhận tham gia\n' +
     '• .tai / .xiu — Chọn trong phòng\n' +
     '• .huyphong — Hủy phòng chờ\n' +
     '• .phong — Xem phòng chờ\n' +
-    '💸 Phí trung gian: 4,9%\n' +
-    '🤝 Bot chỉ làm trọng tài\n' +
     '\n📖 Gõ .menu để xem lại\n' +
     '━━━━━━━━━━━━━━━━━━\n' + DEV;
 }

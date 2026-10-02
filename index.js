@@ -822,7 +822,7 @@ async function playShot(chatId, user, position) {
   return sendMessage(chatId,
     '✅ VÀO! Lần ' + currentLevel + '/9\n💰 ' + formatMoney(currentAmount) + ' (x' + currentRate + ')\n' +
     '👉 .tiep / .lay\n\n' + DEV);
-                      }
+    }
 async function handlePvpTimeout(roomId) {
   const room = await Pvp.findOne({ roomId: roomId });
   if (!room || room.status !== 'choosing') return;
@@ -1121,7 +1121,16 @@ async function handleMessage(update) {
           '━━━━━━━━━━━━━━━━━━\n💡 API hoạt động tốt!\n' + DEV);
       } else {
         await sendMessage(chatId,
-     if (cmd === '.trogiup' || cmd === '.help') return sendMessage(chatId, getHelpText());
+          '❌ TẠO ẢNH THẤT BẠI\n━━━━━━━━━━━━━━━━━━\n' +
+          '🔍 Xem log Render để biết chi tiết\n' +
+          '━━━━━━━━━━━━━━━━━━\n' + DEV);
+      }
+    } catch (err) {
+      await sendMessage(chatId, '❌ LỖI: ' + err.message + '\n\n💡 Xem log Render\n\n' + DEV);
+    }
+    return;
+  }
+  if (cmd === '.trogiup' || cmd === '.help') return sendMessage(chatId, getHelpText());
 if (cmd === '.sodu' || cmd === '.bal' || cmd === '.balance') return sendMessage(chatId, getBalText(user));
 if (cmd === '.toi' || cmd === '.me' || cmd === '.info') return sendMessage(chatId, getMeText(user));
 if (cmd === '.bxh' || cmd === '.top') { const t = await getTopText(); return sendMessage(chatId, t); }
@@ -1500,16 +1509,7 @@ if (cmd === '.lenhrut' || cmd === '.lsrut') {
   }
   t += '━━━━━━━━━━━━━━━━━━\n' + DEV;
   return sendMessage(chatId, t);
-}
-        '❌ TẠO ẢNH THẤT BẠI\n━━━━━━━━━━━━━━━━━━\n' +
-          '🔍 Xem log Render để biết chi tiết\n' +
-          '━━━━━━━━━━━━━━━━━━\n' + DEV);
-      }
-    } catch (err) {
-      await sendMessage(chatId, '❌ LỖI: ' + err.message + '\n\n💡 Xem log Render\n\n' + DEV);
-    }
-    return;
-                                                  }
+                                        }
     if (cmd === '.duyetrut') {
     if (!isAdmin(senderId)) return sendMessage(chatId, '❌ Không phải admin!\n\n' + DEV);
     const parts = text.substring(text.toLowerCase().indexOf(cmd) + cmd.length).trim().split(/\s+/);

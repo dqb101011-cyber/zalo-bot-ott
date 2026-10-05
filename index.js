@@ -1266,6 +1266,283 @@ app.get('/', function(req, res) {
   res.send('Bot OK! | ' + DEV);
 });
 
+// ===== TRANG WEB ADMIN =====
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123456';
+
+app.use(express.urlencoded({ extended: true }));
+
+// Trang đăng nhập
+app.get('/admin', function(req, res) {
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{background:linear-gradient(135deg,#1a1a2e,#16213e);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#fff}
+.box{background:rgba(255,255,255,0.08);padding:40px;border-radius:20px;max-width:400px;width:100%;border:2px solid rgba(255,255,255,0.1)}
+h1{text-align:center;color:#f39c12;margin-bottom:30px;font-size:24px}
+input{width:100%;padding:15px;border-radius:10px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:15px;font-size:16px}
+input:focus{outline:none;border-color:#f39c12}
+button{width:100%;padding:15px;border-radius:10px;border:none;background:#f39c12;color:#000;font-weight:bold;font-size:16px;cursor:pointer}
+button:hover{background:#e67e22}
+</style>
+</head>
+<body>
+<div class="box">
+<h1>🔐 ADMIN PANEL</h1>
+<form method="POST" action="/admin/login">
+<input type="password" name="password" placeholder="Nhập mật khẩu..." required autofocus>
+<button type="submit">ĐĂNG NHẬP</button>
+</form>
+</div>
+</body>
+</html>
+  `);
+});
+
+// Xử lý đăng nhập
+app.post('/admin/login', function(req, res) {
+  const pw = req.body.password || '';
+  if (pw === ADMIN_PASSWORD) {
+    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+  } else {
+    res.send('<script>alert("Sai mật khẩu!");location.href="/admin";</script>');
+  }
+});
+
+// Trang dashboard
+app.get('/admin/dashboard', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalBalance = await User.aggregate([{ $group: { _id: null, total: { $sum: '$balance' } } }]);
+    const totalMoney = totalBalance[0] ? totalBalance[0].total : 0;
+    const pendingWds = await Withdraw.countDocuments({ status: 'pending' });
+    const recentSessions = await Session.countDocuments();
+    const topUsers = await User.find().sort({ balance: -1 }).limit(10);
+    const pendingList = await Withdraw.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(20);
+    
+    let topHtml = '';
+    for (let i = 0; i < topUsers.length; i++) {
+      const u = topUsers[i];
+      topHtml += '<tr><td>' + (i+1) + '</td><td>' + (u.name || '?') + '</td><td>' + u.userId + '</td><td>' + u.balance.toLocaleString('vi-VN') + ' VNĐ</td></tr>';
+    }
+    
+    let pendingHtml = '';
+    for (let i = 0; i < pendingList.length; i++) {
+      const w = pendingList[i];
+      pendingHtml += '<tr><td>' + w.wdId + '</td><td>' + w.userName + '</td><td>' + w.amount.toLocaleString('vi-VN') + ' VNĐ</td><td>' + w.bank + '<br>' + w.stk + '</td><td><a href="/admin/approve?pw=' + pw + '&id=' + w.wdId + '" class="btn-ok">DUYỆT</a> <a href="/admin/reject?pw=' + pw + '&id=' + w.wdId + '" class="btn-no">HỦY</a></td></tr>';
+    }
+    
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{background:#0f0f1e;color:#fff;padding:20px}
+h1{color:#f39c12;margin-bottom:20px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:30px}
+.stat{background:rgba(255,255,255,0.05);padding:20px;border-radius:15px;border-left:4px solid #f39c12}
+.stat h3{color:#aaa;font-size:12px;margin-bottom:5px}
+.stat p{font-size:24px;font-weight:bold;color:#f39c12}
+.box{background:rgba(255,255,255,0.05);padding:20px;border-radius:15px;margin-bottom:20px}
+.box h2{color:#f39c12;margin-bottom:15px;font-size:18px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);font-size:14px}
+th{color:#aaa;font-weight:normal}
+.btn-ok,.btn-no{display:inline-block;padding:5px 10px;border-radius:5px;text-decoration:none;font-size:12px;font-weight:bold;margin-right:5px}
+.btn-ok{background:#27ae60;color:#fff}
+.btn-no{background:#e74c3c;color:#fff}
+.form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.form-row input{flex:1;min-width:150px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff}
+.form-row button{padding:10px 20px;border-radius:8px;border:none;background:#f39c12;color:#000;font-weight:bold;cursor:pointer}
+.winrate-box{text-align:center;padding:20px}
+.winrate-box input{width:100px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff;text-align:center;font-size:16px}
+.winrate-box button{margin-left:10px}
+</style>
+</head>
+<body>
+<h1>🎰 ADMIN PANEL - RED OR BLACK</h1>
+<div class="stats">
+<div class="stat"><h3>TỔNG USER</h3><p>${totalUsers}</p></div>
+<div class="stat"><h3>TỔNG TIỀN</h3><p>${Math.floor(totalMoney).toLocaleString('vi-VN')} đ</p></div>
+<div class="stat"><h3>CHỜ RÚT</h3><p>${pendingWds}</p></div>
+<div class="stat"><h3>PHIÊN</h3><p>${recentSessions}</p></div>
+<div class="stat"><h3>WINRATE</h3><p>${(currentWinRate * 100).toFixed(0)}%</p></div>
+</div>
+
+<div class="box">
+<h2>🎯 CHỈNH TỈ LỆ THẮNG</h2>
+<form method="POST" action="/admin/setwinrate" class="winrate-box">
+<input type="hidden" name="pw" value="${pw}">
+<input type="number" name="rate" min="0" max="100" value="${(currentWinRate * 100).toFixed(0)}" required>
+<button type="submit">CẬP NHẬT</button>
+</form>
+</div>
+
+<div class="box">
+<h2>💰 QUẢN LÝ SỐ DƯ</h2>
+<form method="POST" action="/admin/money">
+<input type="hidden" name="pw" value="${pw}">
+<div class="form-row">
+<input type="text" name="user" placeholder="ID hoặc tên user" required>
+<input type="number" name="amount" placeholder="Số tiền" required>
+<select name="action" style="padding:10px;border-radius:8px;background:#1a1a2e;color:#fff;border:1px solid rgba(255,255,255,0.2)">
+<option value="add">CỘNG</option>
+<option value="sub">TRỪ</option>
+<option value="set">ĐẶT</option>
+</select>
+<button type="submit">THỰC HIỆN</button>
+</div>
+</form>
+</div>
+
+<div class="box">
+<h2>📢 THÔNG BÁO HÀNG LOẠT</h2>
+<form method="POST" action="/admin/broadcast">
+<input type="hidden" name="pw" value="${pw}">
+<div class="form-row">
+<input type="text" name="content" placeholder="Nội dung thông báo..." required style="flex:10">
+<button type="submit">GỬI</button>
+</div>
+</form>
+</div>
+
+<div class="box">
+<h2>💸 YÊU CẦU RÚT ĐANG CHỜ (${pendingWds})</h2>
+<table>
+<tr><th>Mã</th><th>User</th><th>Số tiền</th><th>Ngân hàng</th><th>Hành động</th></tr>
+${pendingHtml || '<tr><td colspan="5" style="text-align:center;color:#aaa">Không có yêu cầu</td></tr>'}
+</table>
+</div>
+
+<div class="box">
+<h2>🏆 TOP 10 ĐẠI GIA</h2>
+<table>
+<tr><th>#</th><th>Tên</th><th>ID</th><th>Số dư</th></tr>
+${topHtml}
+</table>
+</div>
+
+<div style="text-align:center;margin-top:20px">
+<a href="/admin" style="color:#f39c12">Đăng xuất</a>
+</div>
+</body>
+</html>
+    `);
+  } catch (e) {
+    res.send('Lỗi: ' + e.message);
+  }
+});
+
+// API đổi winrate
+app.post('/admin/setwinrate', async function(req, res) {
+  const pw = req.body.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  const rate = parseInt(req.body.rate, 10);
+  if (isNaN(rate) || rate < 0 || rate > 100) return res.send('<script>alert("Rate 0-100!");history.back();</script>');
+  currentWinRate = rate / 100;
+  try {
+    await Config.findOneAndUpdate({ key: 'winrate' }, { value: String(currentWinRate) }, { upsert: true });
+  } catch (e) {}
+  res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+});
+
+// API cộng/trừ/đặt tiền
+app.post('/admin/money', async function(req, res) {
+  const pw = req.body.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  const userQuery = req.body.user || '';
+  const amount = parseInt(req.body.amount, 10);
+  const action = req.body.action || 'add';
+  if (isNaN(amount)) return res.send('<script>alert("Số tiền sai!");history.back();</script>');
+  
+  try {
+    const found = await findUser(userQuery);
+    if (!found) return res.send('<script>alert("Không tìm thấy user!");history.back();</script>');
+    
+    if (action === 'add') found.user.balance += amount;
+    else if (action === 'sub') {
+      found.user.balance -= amount;
+      if (found.user.balance < 0) found.user.balance = 0;
+    } else if (action === 'set') {
+      found.user.balance = amount;
+    }
+    await found.user.save();
+    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+  } catch (e) {
+    res.send('Lỗi: ' + e.message);
+  }
+});
+
+// API broadcast
+app.post('/admin/broadcast', async function(req, res) {
+  const pw = req.body.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  const content = req.body.content || '';
+  if (!content) return res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+  
+  try {
+    const allUsers = await User.find({ canReceiveDM: true });
+    for (let i = 0; i < allUsers.length; i++) {
+      try { await sendMessage(allUsers[i].userId, '📢 THÔNG BÁO\n━━━━━━━━━━━━━━━━━━\n' + content + '\n━━━━━━━━━━━━━━━━━━\n' + DEV); } catch (e) {}
+    }
+    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+  } catch (e) {
+    res.send('Lỗi: ' + e.message);
+  }
+});
+
+// API duyệt rút
+app.get('/admin/approve', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  const wdId = (req.query.id || '').toUpperCase();
+  try {
+    const wd = await Withdraw.findOne({ wdId: wdId });
+    if (wd && wd.status === 'pending') {
+      wd.status = 'approved';
+      await wd.save();
+      const caption = '✅ RÚT THÀNH CÔNG\n🆔 ' + wdId + '\n🎉 ' + wd.userName + '\n💵 ' + formatMoney(wd.amount) + '\n🏦 ' + wd.bank + '\n💳 ' + wd.stk + '\n⏰ 0-120 phút\n' + DEV;
+      const imgUrl = getWithdrawImage(wd.amount);
+      try { await sendPhoto(wd.userId, imgUrl, caption); } catch (e) {}
+      await notifyGroupPhoto(imgUrl, caption);
+    }
+    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+// API hủy rút
+app.get('/admin/reject', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  const wdId = (req.query.id || '').toUpperCase();
+  try {
+    const wd = await Withdraw.findOne({ wdId: wdId });
+    if (wd && wd.status === 'pending') {
+      wd.status = 'cancelled';
+      await wd.save();
+      const wdUser = await User.findOne({ userId: wd.userId });
+      if (wdUser) {
+        wdUser.balance += wd.amount;
+        await wdUser.save();
+        try { await sendMessage(wd.userId, '❌ RÚT ĐÃ HỦY\n🆔 ' + wdId + '\n💰 Hoàn: ' + formatMoney(wd.amount) + '\n💵 ' + formatMoney(wdUser.balance) + '\n' + DEV); } catch (e) {}
+      }
+    }
+    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
   console.log('Bot chạy cổng ' + PORT);

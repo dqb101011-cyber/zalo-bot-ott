@@ -1536,3 +1536,9 @@ app.post('/admin/money', async function(req, res) {
     res.send('Lỗi: ' + e.message);
   }
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, function() {
+  console.log('Bot chạy cổng ' + PORT);
+  console.log(DEV);
+});

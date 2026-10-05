@@ -1426,109 +1426,429 @@ ${pendingHtml || '<tr><td colspan="5" style="text-align:center;color:#aaa">Khôn
 </table>
 </div>
 
+// ===== TRANG WEB ADMIN — FULL TÍNH NĂNG =====
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123456';
+
+app.use(express.urlencoded({ extended: true }));
+
+const ADMIN_CSS = `
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{background:#0f0f1e;color:#fff;padding:20px;min-height:100vh}
+h1{color:#f39c12;margin-bottom:20px;text-align:center;font-size:22px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:25px}
+.stat{background:rgba(255,255,255,0.05);padding:15px;border-radius:12px;border-left:4px solid #f39c12}
+.stat h3{color:#aaa;font-size:11px;margin-bottom:5px;text-transform:uppercase}
+.stat p{font-size:20px;font-weight:bold;color:#f39c12}
+.box{background:rgba(255,255,255,0.05);padding:20px;border-radius:15px;margin-bottom:20px}
+.box h2{color:#f39c12;margin-bottom:15px;font-size:16px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);font-size:13px}
+th{color:#aaa;font-weight:normal;font-size:12px}
+.btn{display:inline-block;padding:5px 10px;border-radius:5px;text-decoration:none;font-size:11px;font-weight:bold;margin-right:4px;border:none;cursor:pointer}
+.btn-ok{background:#27ae60;color:#fff}
+.btn-no{background:#e74c3c;color:#fff}
+.btn-warn{background:#f39c12;color:#000}
+.btn-info{background:#3498db;color:#fff}
+.form-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.form-row input,.form-row select{flex:1;min-width:130px;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff;font-size:13px}
+.form-row button{padding:9px 18px;border-radius:8px;border:none;background:#f39c12;color:#000;font-weight:bold;cursor:pointer;font-size:13px}
+.winrate-box{text-align:center;padding:10px}
+.winrate-box input{width:90px;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff;text-align:center;font-size:15px}
+.menu{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:20px}
+.menu a{padding:9px 16px;background:rgba(255,255,255,0.05);color:#fff;text-decoration:none;border-radius:8px;border:1px solid rgba(255,255,255,0.1);font-size:13px}
+.menu a:hover{background:#f39c12;color:#000}
+.menu a.active{background:#f39c12;color:#000}
+.tag{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:bold}
+.tag-win{background:#27ae60;color:#fff}
+.tag-lose{background:#e74c3c;color:#fff}
+.tag-pending{background:#f39c12;color:#000}
+.tag-tai{background:#e74c3c;color:#fff}
+.tag-xiu{background:#3498db;color:#fff}
+.search{width:100%;padding:11px;border-radius:9px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:12px;font-size:13px}
+.copy-id{cursor:pointer;color:#3498db;text-decoration:underline;font-size:11px}
+.copy-id:hover{color:#f39c12}
+`;
+
+function adminLayout(title, content, pw, activeMenu) {
+  const menus = [
+    { url: '/admin/dashboard', label: '📊 Dashboard', key: 'dashboard' },
+    { url: '/admin/users', label: '👥 Users', key: 'users' },
+    { url: '/admin/withdraws', label: '💸 Duyệt rút', key: 'withdraws' },
+    { url: '/admin/sessions', label: '📜 Phiên', key: 'sessions' },
+    { url: '/admin/config', label: '⚙️ Config', key: 'config' }
+  ];
+  let menuHtml = '';
+  for (let i = 0; i < menus.length; i++) {
+    const m = menus[i];
+    const isActive = m.key === activeMenu;
+    menuHtml += '<a href="' + m.url + '?pw=' + pw + '"' + (isActive ? ' class="active"' : '') + '>' + m.label + '</a>';
+  }
+  menuHtml += '<a href="/admin" style="background:#e74c3c;color:#fff">🚪 Đăng xuất</a>';
+  
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title><style>${ADMIN_CSS}</style></head><body>
+<h1>🎰 ADMIN PANEL — RED OR BLACK</h1>
+<div class="menu">${menuHtml}</div>
+${content}
+<script>
+function copyId(id){
+  navigator.clipboard.writeText(id).then(function(){
+    alert('Đã copy ID: ' + id);
+  });
+}
+</script>
+</body></html>`;
+}
+
+// ===== LOGIN =====
+app.get('/admin', function(req, res) {
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login</title><style>${ADMIN_CSS}
+.login-box{background:rgba(255,255,255,0.08);padding:40px;border-radius:20px;max-width:400px;width:100%;margin:100px auto;border:2px solid rgba(255,255,255,0.1)}
+.login-box input{width:100%;padding:15px;border-radius:10px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:15px;font-size:16px}
+.login-box button{width:100%;padding:15px;border-radius:10px;border:none;background:#f39c12;color:#000;font-weight:bold;font-size:16px;cursor:pointer}
+</style></head><body>
+<div class="login-box">
+<h1>🔐 ADMIN LOGIN</h1>
+<form method="POST" action="/admin/login">
+<input type="password" name="password" placeholder="Nhập mật khẩu..." required autofocus>
+<button type="submit">ĐĂNG NHẬP</button>
+</form>
+</div></body></html>`);
+});
+
+app.post('/admin/login', function(req, res) {
+  if ((req.body.password || '') === ADMIN_PASSWORD) {
+    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(ADMIN_PASSWORD));
+  } else {
+    res.send('<script>alert("Sai mật khẩu!");location.href="/admin";</script>');
+  }
+});
+
+// ===== DASHBOARD =====
+app.get('/admin/dashboard', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalBalance = await User.aggregate([{ $group: { _id: null, total: { $sum: '$balance' } } }]);
+    const totalMoney = totalBalance[0] ? totalBalance[0].total : 0;
+    const pendingWds = await Withdraw.countDocuments({ status: 'pending' });
+    const totalSessions = await Session.countDocuments();
+    const todaySessions = await Session.countDocuments({ createdAt: { $gte: Date.now() - 86400000 } });
+    const approvedWds = await Withdraw.countDocuments({ status: 'approved' });
+    const totalWithdrawn = await Withdraw.aggregate([{ $match: { status: 'approved' } }, { $group: { _id: null, total: { $sum: '$amount' } } }]);
+    const withdrawnAmt = totalWithdrawn[0] ? totalWithdrawn[0].total : 0;
+
+    const topUsers = await User.find().sort({ balance: -1 }).limit(10);
+    let topHtml = '';
+    for (let i = 0; i < topUsers.length; i++) {
+      const u = topUsers[i];
+      const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) + '.';
+      topHtml += '<tr><td>' + rank + '</td><td>' + (u.name || '?') + '</td><td><span class="copy-id" onclick="copyId(\\'' + u.userId + '\\')">' + u.userId + '</span></td><td>' + u.balance.toLocaleString('vi-VN') + ' đ</td><td><a href="/admin/user_edit?pw=' + pw + '&id=' + u.userId + '" class="btn btn-info">SỬA</a></td></tr>';
+    }
+
+    const pendingList = await Withdraw.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(20);
+    let pendingHtml = '';
+    for (let i = 0; i < pendingList.length; i++) {
+      const w = pendingList[i];
+      pendingHtml += '<tr><td>' + w.wdId + '</td><td>' + w.userName + '</td><td><span class="copy-id" onclick="copyId(\\'' + w.userId + '\\')">' + w.userId.substring(0,12) + '...</span></td><td>' + w.amount.toLocaleString('vi-VN') + ' đ</td><td>' + w.bank + '<br>' + w.stk + '</td><td><a href="/admin/approve?pw=' + pw + '&id=' + w.wdId + '" class="btn btn-ok">DUYỆT</a><a href="/admin/reject?pw=' + pw + '&id=' + w.wdId + '" class="btn btn-no">HỦY</a></td></tr>';
+    }
+
+    const content = `
+<div class="stats">
+<div class="stat"><h3>Tổng User</h3><p>${totalUsers}</p></div>
+<div class="stat"><h3>Tổng Tiền</h3><p>${Math.floor(totalMoney).toLocaleString('vi-VN')} đ</p></div>
+<div class="stat"><h3>Chờ Rút</h3><p>${pendingWds}</p></div>
+<div class="stat"><h3>Đã Rút</h3><p>${Math.floor(withdrawnAmt).toLocaleString('vi-VN')} đ</p></div>
+<div class="stat"><h3>Tổng Phiên</h3><p>${totalSessions}</p></div>
+<div class="stat"><h3>Phiên 24h</h3><p>${todaySessions}</p></div>
+<div class="stat"><h3>WR</h3><p>${(currentWinRate * 100).toFixed(0)}%</p></div>
+<div class="stat"><h3>Đã Duyệt</h3><p>${approvedWds}</p></div>
+</div>
+
 <div class="box">
-<h2>🏆 TOP 10 ĐẠI GIA</h2>
+<h2>🎯 CHỈNH WR</h2>
+<p style="text-align:center;margin-bottom:15px;color:#f39c12;font-size:18px">
+📊 WR hiện tại: <b>${(currentWinRate * 100).toFixed(0)}%</b>
+</p>
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:600px;margin:0 auto">
+<a href="/admin/setwinrate?pw=${pw}&rate=10" class="btn ${currentWinRate === 0.1 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">10%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=20" class="btn ${currentWinRate === 0.2 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">20%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=30" class="btn ${currentWinRate === 0.3 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">30%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=40" class="btn ${currentWinRate === 0.4 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">40%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=50" class="btn ${currentWinRate === 0.5 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">50%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=60" class="btn ${currentWinRate === 0.6 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">60%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=70" class="btn ${currentWinRate === 0.7 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">70%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=80" class="btn ${currentWinRate === 0.8 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">80%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=90" class="btn ${currentWinRate === 0.9 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">90%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=100" class="btn ${currentWinRate === 1.0 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">100%</a>
+</div>
+<p style="text-align:center;margin-top:15px;color:#aaa;font-size:12px">
+✅ Bấm nút để đổi ngay — nút xanh là hiện tại
+</p>
+</div>
+
+<div class="box">
+<h2>📢 THÔNG BÁO HÀNG LOẠT</h2>
+<form method="POST" action="/admin/broadcast">
+<input type="hidden" name="pw" value="${pw}">
+<div class="form-row">
+<input type="text" name="content" placeholder="Nội dung thông báo gửi tới tất cả user..." required>
+<button type="submit">📢 GỬI</button>
+</div>
+</form>
+</div>
+
+<div class="box">
+<h2>💸 YÊU CẦU RÚT ĐANG CHỜ (${pendingWds})</h2>
+${pendingWds > 0 ? '<a href="/admin/approveall?pw=' + pw + '" class="btn btn-ok" style="margin-bottom:10px;display:inline-block;padding:8px 15px" onclick="return confirm(\\'Duyệt TẤT CẢ ' + ${pendingWds} + ' yêu cầu?\\')">✅ DUYỆT TẤT CẢ (${pendingWds})</a>' : ''}
 <table>
-<tr><th>#</th><th>Tên</th><th>ID</th><th>Số dư</th></tr>
-${topHtml}
+<tr><th>Mã</th><th>User</th><th>ID</th><th>Số tiền</th><th>Ngân hàng</th><th>HĐ</th></tr>
+${pendingHtml || '<tr><td colspan="6" style="text-align:center;color:#aaa">Không có yêu cầu</td></tr>'}
 </table>
 </div>
 
-<div style="text-align:center;margin-top:20px">
-<a href="/admin" style="color:#f39c12">Đăng xuất</a>
+<div class="box">
+<h2>🏆 TOP 10 ĐẠI GIA</h2>
+<table>
+<tr><th>#</th><th>Tên</th><th>ID</th><th>Số dư</th><th>HĐ</th></tr>
+${topHtml || '<tr><td colspan="5" style="text-align:center;color:#aaa">Chưa có ai</td></tr>'}
+</table>
 </div>
-</body>
-</html>
-    `);
-  } catch (e) {
-    res.send('Lỗi: ' + e.message);
-  }
+`;
+    res.send(adminLayout('Dashboard', content, pw, 'dashboard'));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
 });
 
-// API đổi winrate
-app.post('/admin/setwinrate', async function(req, res) {
+// ===== USERS =====
+app.get('/admin/users', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  const search = req.query.search || '';
+  try {
+    let users;
+    if (search) {
+      users = await User.find({
+        $or: [
+          { userId: { $regex: search, $options: 'i' } },
+          { name: { $regex: search, $options: 'i' } }
+        ]
+      }).sort({ balance: -1 }).limit(100);
+    } else {
+      users = await User.find().sort({ balance: -1 }).limit(100);
+    }
+    let userRows = '';
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      userRows += '<tr>' +
+        '<td>' + (i+1) + '</td>' +
+        '<td>' + (u.name || '?') + '</td>' +
+        '<td><span class="copy-id" onclick="copyId(\\'' + u.userId + '\\')">' + u.userId + '</span></td>' +
+        '<td>' + u.balance.toLocaleString('vi-VN') + ' đ</td>' +
+        '<td>' + u.winCount + 'W/' + u.loseCount + 'L</td>' +
+        '<td>' + (u.canReceiveDM ? '✅' : '❌') + '</td>' +
+        '<td>' +
+          '<a href="/admin/user_edit?pw=' + pw + '&id=' + u.userId + '" class="btn btn-info">SỬA</a>' +
+          '<a href="/admin/user_delete?pw=' + pw + '&id=' + u.userId + '" class="btn btn-no" onclick="return confirm(\\'Xóa user ' + (u.name || '') + '?\\')">XÓA</a>' +
+        '</td>' +
+        '</tr>';
+    }
+    const content = `
+<div class="box">
+<h2>👥 QUẢN LÝ USERS (${users.length}${search ? ' / tìm: ' + search : ''})</h2>
+<form method="GET" action="/admin/users">
+<input type="hidden" name="pw" value="${pw}">
+<input type="text" name="search" class="search" placeholder="🔍 Tìm theo ID hoặc tên..." value="${search}">
+</form>
+<table>
+<tr><th>#</th><th>Tên</th><th>ID</th><th>Số dư</th><th>W/L</th><th>DM</th><th>HĐ</th></tr>
+${userRows || '<tr><td colspan="7" style="text-align:center;color:#aaa">Không có user</td></tr>'}
+</table>
+</div>
+
+<div class="box">
+<h2>💰 THÊM/SỬA SỐ DƯ</h2>
+<form method="POST" action="/admin/money">
+<input type="hidden" name="pw" value="${pw}">
+<div class="form-row">
+<input type="text" name="user" placeholder="ID hoặc tên user" required>
+<input type="number" name="amount" placeholder="Số tiền" required>
+<select name="action">
+<option value="add">➕ CỘNG</option>
+<option value="sub">➖ TRỪ</option>
+<option value="set">✏️ ĐẶT</option>
+</select>
+<button type="submit">THỰC HIỆN</button>
+</div>
+</form>
+</div>
+
+<div class="box">
+<h2>➕ TẠO USER MỚI</h2>
+<form method="POST" action="/admin/create_user">
+<input type="hidden" name="pw" value="${pw}">
+<div class="form-row">
+<input type="text" name="userid" placeholder="User ID Zalo" required>
+<input type="text" name="name" placeholder="Tên user" required>
+<input type="number" name="balance" placeholder="Số dư" value="0">
+<button type="submit">TẠO</button>
+</div>
+</form>
+</div>
+`;
+    res.send(adminLayout('Users', content, pw, 'users'));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+// ===== EDIT USER =====
+app.get('/admin/user_edit', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  try {
+    const u = await User.findOne({ userId: req.query.id });
+    if (!u) return res.send('<script>alert("Không tìm thấy!");history.back();</script>');
+    const content = `
+<div class="box">
+<h2>✏️ SỬA USER</h2>
+<form method="POST" action="/admin/user_update">
+<input type="hidden" name="pw" value="${pw}">
+<input type="hidden" name="oldid" value="${u.userId}">
+<div class="form-row"><label style="padding:9px;width:120px">User ID:</label><input type="text" name="userid" value="${u.userId}" required></div>
+<div class="form-row"><label style="padding:9px;width:120px">Tên:</label><input type="text" name="name" value="${u.name || ''}" required></div>
+<div class="form-row"><label style="padding:9px;width:120px">Số dư:</label><input type="number" name="balance" value="${u.balance}"></div>
+<div class="form-row"><label style="padding:9px;width:120px">Số thắng:</label><input type="number" name="winCount" value="${u.winCount}"></div>
+<div class="form-row"><label style="padding:9px;width:120px">Số thua:</label><input type="number" name="loseCount" value="${u.loseCount}"></div>
+<div class="form-row"><label style="padding:9px;width:120px">Nhận DM:</label>
+<select name="canReceiveDM">
+<option value="true" ${u.canReceiveDM ? 'selected' : ''}>CÓ</option>
+<option value="false" ${!u.canReceiveDM ? 'selected' : ''}>KHÔNG</option>
+</select></div>
+<div class="form-row"><button type="submit">💾 LƯU THAY ĐỔI</button></div>
+</form>
+</div>
+<div class="box">
+<h2>ℹ️ THÔNG TIN</h2>
+<p>Tạo lúc: ${new Date(u.createdAt).toLocaleString('vi-VN')}</p>
+<p>Tổng cược: ${u.totalBet.toLocaleString('vi-VN')} đ</p>
+<p>Hủy PvP: ${u.cancelCount || 0} lần</p>
+</div>
+`;
+    res.send(adminLayout('Edit User', content, pw, 'users'));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+app.post('/admin/user_update', async function(req, res) {
   const pw = req.body.pw || '';
   if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
-  const rate = parseInt(req.body.rate, 10);
+  try {
+    const u = await User.findOne({ userId: req.body.oldid });
+    if (u) {
+      u.userId = req.body.userid;
+      u.name = req.body.name;
+      u.balance = parseInt(req.body.balance, 10) || 0;
+      u.winCount = parseInt(req.body.winCount, 10) || 0;
+      u.loseCount = parseInt(req.body.loseCount, 10) || 0;
+      u.canReceiveDM = req.body.canReceiveDM === 'true';
+      await u.save();
+    }
+    res.redirect('/admin/users?pw=' + encodeURIComponent(pw));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+// ===== DELETE USER =====
+app.get('/admin/user_delete', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  try {
+    await User.deleteOne({ userId: req.query.id });
+    res.redirect('/admin/users?pw=' + encodeURIComponent(pw));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+// ===== CREATE USER =====
+app.post('/admin/create_user', async function(req, res) {
+  const pw = req.body.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  try {
+    const existing = await User.findOne({ userId: req.body.userid });
+    if (existing) return res.send('<script>alert("User ID đã tồn tại!");history.back();</script>');
+    await User.create({
+      userId: req.body.userid,
+      name: req.body.name,
+      balance: parseInt(req.body.balance, 10) || 0
+    });
+    res.redirect('/admin/users?pw=' + encodeURIComponent(pw));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+// ===== SET WINRATE =====
+app.get('/admin/setwinrate', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  const rate = parseInt(req.query.rate, 10);
   if (isNaN(rate) || rate < 0 || rate > 100) return res.send('<script>alert("Rate 0-100!");history.back();</script>');
   currentWinRate = rate / 100;
-  try {
-    await Config.findOneAndUpdate({ key: 'winrate' }, { value: String(currentWinRate) }, { upsert: true });
-  } catch (e) {}
+  try { await Config.findOneAndUpdate({ key: 'winrate' }, { value: String(currentWinRate) }, { upsert: true }); } catch (e) {}
   res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
 });
 
-// API cộng/trừ/đặt tiền
+// ===== MONEY =====
 app.post('/admin/money', async function(req, res) {
   const pw = req.body.pw || '';
   if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
-  const userQuery = req.body.user || '';
-  const amount = parseInt(req.body.amount, 10);
-  const action = req.body.action || 'add';
-  if (isNaN(amount)) return res.send('<script>alert("Số tiền sai!");history.back();</script>');
-  
   try {
-    const found = await findUser(userQuery);
+    const found = await findUser(req.body.user);
     if (!found) return res.send('<script>alert("Không tìm thấy user!");history.back();</script>');
-    
+    const amount = parseInt(req.body.amount, 10) || 0;
+    const action = req.body.action;
     if (action === 'add') found.user.balance += amount;
-    else if (action === 'sub') {
-      found.user.balance -= amount;
-      if (found.user.balance < 0) found.user.balance = 0;
-    } else if (action === 'set') {
-      found.user.balance = amount;
-    }
+    else if (action === 'sub') { found.user.balance -= amount; if (found.user.balance < 0) found.user.balance = 0; }
+    else if (action === 'set') found.user.balance = amount;
     await found.user.save();
-    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
-  } catch (e) {
-    res.send('Lỗi: ' + e.message);
-  }
+    res.redirect('/admin/users?pw=' + encodeURIComponent(pw));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
 });
 
-// API broadcast
+// ===== BROADCAST =====
 app.post('/admin/broadcast', async function(req, res) {
   const pw = req.body.pw || '';
   if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
-  const content = req.body.content || '';
-  if (!content) return res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
-  
   try {
     const allUsers = await User.find({ canReceiveDM: true });
+    let success = 0;
     for (let i = 0; i < allUsers.length; i++) {
-      try { await sendMessage(allUsers[i].userId, '📢 THÔNG BÁO\n━━━━━━━━━━━━━━━━━━\n' + content + '\n━━━━━━━━━━━━━━━━━━\n' + DEV); } catch (e) {}
+      try { await sendMessage(allUsers[i].userId, '📢 THÔNG BÁO\n━━━━━━━━━━━━━━━━━━\n' + req.body.content + '\n━━━━━━━━━━━━━━━━━━\n' + DEV); success++; } catch (e) {}
     }
-    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
-  } catch (e) {
-    res.send('Lỗi: ' + e.message);
-  }
+    res.send('<script>alert("Đã gửi ' + success + '/' + allUsers.length + '");location.href="/admin/dashboard?pw=' + encodeURIComponent(pw) + '";</script>');
+  } catch (e) { res.send('Lỗi: ' + e.message); }
 });
 
-// API duyệt rút
+// ===== APPROVE =====
 app.get('/admin/approve', async function(req, res) {
   const pw = req.query.pw || '';
   if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
-  const wdId = (req.query.id || '').toUpperCase();
   try {
-    const wd = await Withdraw.findOne({ wdId: wdId });
+    const wd = await Withdraw.findOne({ wdId: (req.query.id || '').toUpperCase() });
     if (wd && wd.status === 'pending') {
       wd.status = 'approved';
       await wd.save();
-      const caption = '✅ RÚT THÀNH CÔNG\n🆔 ' + wdId + '\n🎉 ' + wd.userName + '\n💵 ' + formatMoney(wd.amount) + '\n🏦 ' + wd.bank + '\n💳 ' + wd.stk + '\n⏰ 0-120 phút\n' + DEV;
+      const caption = '✅ RÚT THÀNH CÔNG\n🆔 ' + wd.wdId + '\n🎉 ' + wd.userName + '\n💵 ' + formatMoney(wd.amount) + '\n🏦 ' + wd.bank + '\n💳 ' + wd.stk + '\n⏰ 0-120 phút\n' + DEV;
       const imgUrl = getWithdrawImage(wd.amount);
       try { await sendPhoto(wd.userId, imgUrl, caption); } catch (e) {}
       await notifyGroupPhoto(imgUrl, caption);
     }
-    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+    res.redirect('/admin/withdraws?pw=' + encodeURIComponent(pw));
   } catch (e) { res.send('Lỗi: ' + e.message); }
 });
 
-// API hủy rút
+// ===== REJECT =====
 app.get('/admin/reject', async function(req, res) {
   const pw = req.query.pw || '';
   if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
-  const wdId = (req.query.id || '').toUpperCase();
   try {
-    const wd = await Withdraw.findOne({ wdId: wdId });
+    const wd = await Withdraw.findOne({ wdId: (req.query.id || '').toUpperCase() });
     if (wd && wd.status === 'pending') {
       wd.status = 'cancelled';
       await wd.save();
@@ -1536,10 +1856,156 @@ app.get('/admin/reject', async function(req, res) {
       if (wdUser) {
         wdUser.balance += wd.amount;
         await wdUser.save();
-        try { await sendMessage(wd.userId, '❌ RÚT ĐÃ HỦY\n🆔 ' + wdId + '\n💰 Hoàn: ' + formatMoney(wd.amount) + '\n💵 ' + formatMoney(wdUser.balance) + '\n' + DEV); } catch (e) {}
+        try { await sendMessage(wd.userId, '❌ RÚT ĐÃ HỦY\n🆔 ' + wd.wdId + '\n💰 Hoàn: ' + formatMoney(wd.amount) + '\n💵 ' + formatMoney(wdUser.balance) + '\n' + DEV); } catch (e) {}
       }
     }
-    res.redirect('/admin/dashboard?pw=' + encodeURIComponent(pw));
+    res.redirect('/admin/withdraws?pw=' + encodeURIComponent(pw));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+// ===== APPROVE ALL =====
+app.get('/admin/approveall', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  try {
+    const allPending = await Withdraw.find({ status: 'pending' });
+    for (let i = 0; i < allPending.length; i++) {
+      const wd = allPending[i];
+      wd.status = 'approved';
+      await wd.save();
+      const caption = '✅ RÚT THÀNH CÔNG\n🆔 ' + wd.wdId + '\n🎉 ' + wd.userName + '\n💵 ' + formatMoney(wd.amount) + '\n🏦 ' + wd.bank + '\n💳 ' + wd.stk + '\n' + DEV;
+      const imgUrl = getWithdrawImage(wd.amount);
+      try { await sendPhoto(wd.userId, imgUrl, caption); } catch (e) {}
+      await notifyGroupPhoto(imgUrl, caption);
+    }
+    res.redirect('/admin/withdraws?pw=' + encodeURIComponent(pw));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+// ===== WITHDRAWS PAGE =====
+app.get('/admin/withdraws', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  try {
+    const filter = req.query.status || 'pending';
+    const list = await Withdraw.find({ status: filter }).sort({ createdAt: -1 }).limit(50);
+    let rows = '';
+    for (let i = 0; i < list.length; i++) {
+      const w = list[i];
+      const status = w.status === 'pending' ? '<span class="tag tag-pending">⏳ CHỜ</span>' :
+                     w.status === 'approved' ? '<span class="tag tag-win">✅ DUYỆT</span>' :
+                     '<span class="tag tag-lose">❌ HỦY</span>';
+      rows += '<tr>' +
+        '<td>' + w.wdId + '</td>' +
+        '<td>' + w.userName + '</td>' +
+        '<td><span class="copy-id" onclick="copyId(\\'' + w.userId + '\\')">' + w.userId.substring(0, 15) + '...</span></td>' +
+        '<td>' + w.amount.toLocaleString('vi-VN') + ' đ</td>' +
+        '<td>' + w.bank + '<br>' + w.stk + '<br>' + w.accountName + '</td>' +
+        '<td>' + status + '</td>' +
+        '<td>' + (w.status === 'pending' ? '<a href="/admin/approve?pw=' + pw + '&id=' + w.wdId + '" class="btn btn-ok">DUYỆT</a><a href="/admin/reject?pw=' + pw + '&id=' + w.wdId + '" class="btn btn-no">HỦY</a>' : '') + '</td>' +
+        '</tr>';
+    }
+    const content = `
+<div class="box">
+<h2>💸 DANH SÁCH YÊU CẦU RÚT</h2>
+<div style="margin-bottom:15px">
+<a href="/admin/withdraws?pw=${pw}&status=pending" class="btn ${filter === 'pending' ? 'btn-warn' : 'btn-info'}">⏳ CHỜ</a>
+<a href="/admin/withdraws?pw=${pw}&status=approved" class="btn ${filter === 'approved' ? 'btn-warn' : 'btn-info'}">✅ ĐÃ DUYỆT</a>
+<a href="/admin/withdraws?pw=${pw}&status=cancelled" class="btn ${filter === 'cancelled' ? 'btn-warn' : 'btn-info'}">❌ ĐÃ HỦY</a>
+</div>
+${filter === 'pending' && list.length > 0 ? '<a href="/admin/approveall?pw=' + pw + '" class="btn btn-ok" style="margin-bottom:10px;display:inline-block;padding:8px 15px" onclick="return confirm(\\'Duyệt tất cả ' + ${list.length} + '?\\')">✅ DUYỆT TẤT CẢ (' + list.length + ')</a>' : ''}
+<table>
+<tr><th>Mã</th><th>User</th><th>ID</th><th>Số tiền</th><th>Bank</th><th>Trạng thái</th><th>HĐ</th></tr>
+${rows || '<tr><td colspan="7" style="text-align:center;color:#aaa">Không có</td></tr>'}
+</table>
+</div>
+`;
+    res.send(adminLayout('Withdraws', content, pw, 'withdraws'));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+// ===== SESSIONS =====
+app.get('/admin/sessions', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  try {
+    const list = await Session.find().sort({ createdAt: -1 }).limit(50);
+    let rows = '';
+    for (let i = 0; i < list.length; i++) {
+      const s = list[i];
+      const sid = ('00000' + s.sessionId).slice(-5);
+      const resultTag = s.result === 'Tài' ? '<span class="tag tag-tai">🔴 TÀI</span>' : '<span class="tag tag-xiu">🔵 XỈU</span>';
+      rows += '<tr>' +
+        '<td>#' + sid + '</td>' +
+        '<td>' + s.dice.join('-') + ' = ' + s.total + '</td>' +
+        '<td>' + resultTag + '</td>' +
+        '<td>' + s.choice + '</td>' +
+        '<td>' + s.amount.toLocaleString('vi-VN') + ' đ</td>' +
+        '<td>' + s.userName + '</td>' +
+        '<td style="font-size:11px">' + new Date(s.createdAt).toLocaleString('vi-VN') + '</td>' +
+        '</tr>';
+    }
+    const content = `
+<div class="box">
+<h2>📜 50 PHIÊN GẦN NHẤT</h2>
+<table>
+<tr><th>#</th><th>Xúc xắc</th><th>KQ</th><th>Chọn</th><th>Cược</th><th>User</th><th>Thời gian</th></tr>
+${rows || '<tr><td colspan="7" style="text-align:center;color:#aaa">Chưa có phiên</td></tr>'}
+</table>
+</div>
+`;
+    res.send(adminLayout('Sessions', content, pw, 'sessions'));
+  } catch (e) { res.send('Lỗi: ' + e.message); }
+});
+
+// ===== CONFIG =====
+app.get('/admin/config', async function(req, res) {
+  const pw = req.query.pw || '';
+  if (pw !== ADMIN_PASSWORD) return res.redirect('/admin');
+  try {
+    const cfgs = await Config.find();
+    let rows = '';
+    for (let i = 0; i < cfgs.length; i++) {
+      rows += '<tr><td>' + cfgs[i].key + '</td><td>' + cfgs[i].value + '</td></tr>';
+    }
+    const content = `
+<div class="box">
+<h2>⚙️ CẤU HÌNH HIỆN TẠI</h2>
+<table>
+<tr><th>Key</th><th>Value</th></tr>
+${rows || '<tr><td colspan="2" style="text-align:center;color:#aaa">Chưa có</td></tr>'}
+</table>
+</div>
+
+<div class="box">
+<h2>🎯 CHỈNH WR: ${(currentWinRate * 100).toFixed(0)}%</h2>
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:600px;margin:0 auto">
+<a href="/admin/setwinrate?pw=${pw}&rate=10" class="btn ${currentWinRate === 0.1 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">10%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=20" class="btn ${currentWinRate === 0.2 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">20%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=30" class="btn ${currentWinRate === 0.3 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">30%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=40" class="btn ${currentWinRate === 0.4 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">40%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=50" class="btn ${currentWinRate === 0.5 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">50%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=60" class="btn ${currentWinRate === 0.6 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">60%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=70" class="btn ${currentWinRate === 0.7 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">70%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=80" class="btn ${currentWinRate === 0.8 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">80%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=90" class="btn ${currentWinRate === 0.9 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">90%</a>
+<a href="/admin/setwinrate?pw=${pw}&rate=100" class="btn ${currentWinRate === 1.0 ? 'btn-ok' : 'btn-info'}" style="text-align:center;padding:12px;font-size:14px">100%</a>
+</div>
+</div>
+
+<div class="box">
+<h2>ℹ️ THÔNG TIN HỆ THỐNG</h2>
+<p>Bot: <b>${DEV}</b></p>
+<p>MongoDB: ${MONGODB_URI ? '✅ Kết nối' : '❌ Chưa cấu hình'}</p>
+<p>ScreenshotOne: ${SCREENSHOTONE_KEY ? '✅ Có key' : '❌ Chưa cấu hình'}</p>
+<p>ImgBB: ${IMGBB_KEY ? '✅ Có key' : '❌ Chưa cấu hình'}</p>
+<p>Admin IDs: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : '❌ Chưa cấu hình'}</p>
+<p>Notify Group: ${NOTIFY_GROUP_ID || '❌ Chưa cấu hình'}</p>
+<p>Node Version: ${process.version}</p>
+<p>Uptime: ${Math.floor(process.uptime() / 60)} phút</p>
+</div>
+`;
+    res.send(adminLayout('Config', content, pw, 'config'));
   } catch (e) { res.send('Lỗi: ' + e.message); }
 });
 

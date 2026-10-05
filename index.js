@@ -884,11 +884,11 @@ async function handleMessage(update) {
     if (cmd === '.nap' || cmd === '.naptien') {
       return sendPhoto(chatId, 'https://i.ibb.co/k2xt1X4H/qr-sepay.png',
         '💳 NẠP TIỀN\n━━━━━━━━━━━━━━━━━━\n' +
-        '1. CK số tiền muốn nạp\n' +
-        '2. Nội dung CK: ID của bạn\n' +
+        '1. Chuyển số tiền muốn nạp\n' +
+        '2. Gửi ảnh bill lên nhóm\n' +
         '3. Admin cộng trong 0-120 phút\n' +
         '━━━━━━━━━━━━━━━━━━\n' +
-        '🆔 ID của bạn: ' + senderId + '\n' +
+        '' + senderId + '\n' +
         '━━━━━━━━━━━━━━━━━━\n' + DEV);
     }
 

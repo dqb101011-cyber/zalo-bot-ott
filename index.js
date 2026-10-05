@@ -582,21 +582,29 @@ body{width:800px;height:560px;background:linear-gradient(135deg,#1a1a2e,#16213e,
 }
 
 function getHelpText() {
-  return '🎰 RED OR BLACK 🎰\n' +
+  return '🎰 ĐỎ HAY ĐEN 🎰\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
-    '💰 TÀI KHOẢN\n' +
-    '.sodu .toi .id\n' +
-    '.nap .rut .lenhrut\n' +
-    '.xacnhan\n' +
-    '\n🎲 TÀI XỈU\n' +
-    '.tx tài [tiền]\n' +
-    '.tx xỉu [tiền]\n' +
-    '\n⚔️ PVP\n' +
-    '.txpvp [tiền]\n' +
-    '.vao [mã]\n' +
-    '.tai / .xiu\n' +
-    '.huyphong .phong\n' +
-    '\n📊 .bxh .lichsu .menu\n' +
+    '💰 LỆNH CHUNG:\n' +
+    '• .sodu — Xem số dư\n' +
+    '• .bxh — Bảng xếp hạng\n' +
+    '• .lichsu — Lịch sử phiên\n' +
+    '• .toi — Thông tin cá nhân\n' +
+    '• .id — Xem ID của bạn\n' +
+    '• .nap — Nạp tiền\n' +
+    '• .rut — Rút tiền\n' +
+    '• .lenhrut — Lịch sử rút\n' +
+    '\n 🎲 TÀI XỈU: \n' +
+    '• .tx tài 10000 — Cược Tài\n' +
+    '• .tx xỉu 10000 — Cược Xỉu\n' +
+    '\n⚔️ TÀI XỈU PVP (2 người):\n' +
+    '• .txpvp [tiền] — Tạo phòng\n' +
+    '• .vao [mã] — Vào phòng\n' +
+    '• .xacnhan — Xác nhận tham gia\n' +
+    '• .tai / .xiu — Chọn trong phòng\n' +
+    '• .huyphong — Hủy phòng chờ\n' +
+    '• .phong — Xem phòng chờ\n' +
+    '🤝 PVP Bot chỉ làm trọng tài\n' +
+    '\n📖 Gõ .menu để xem lại\n' +
     '━━━━━━━━━━━━━━━━━━\n' + DEV;
 }
 
@@ -612,7 +620,6 @@ function getMeText(user) {
     '📛 Tên: ' + user.name + '\n💵 Số dư: ' + formatMoney(user.balance) + '\n' +
     '🏆 Thắng: ' + user.winCount + '\n💀 Thua: ' + user.loseCount + '\n' +
     '🎯 Tổng cược: ' + formatMoney(user.totalBet) + '\n' +
-    '📩 Nhận DM: ' + (user.canReceiveDM ? '✅' : '❌') + '\n' +
     '📅 Tham gia: ' + new Date(user.createdAt).toLocaleString('vi-VN') + '\n━━━━━━━━━━━━━━━━━━\n' + DEV;
 }
 
@@ -891,11 +898,11 @@ if (cmd === '.id') {
 if (cmd === '.nap' || cmd === '.naptien') {
   return sendPhoto(chatId, 'https://i.ibb.co/k2xt1X4H/qr-sepay.png',
     '💳 NẠP TIỀN\n━━━━━━━━━━━━━━━━━━\n' +
-    '1. CK số tiền muốn nạp\n' +
-    '2. Nội dung CK: ID của bạn\n' +
+    '1. Chuyển khoản số tiền muốn nạp\n' +
+    '2. Gửi ảnh bill lên nhóm\n' +
     '3. Admin cộng trong 0-120 phút\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
-    '🆔 ID của bạn: ' + senderId + '\n' +
+    '' + senderId + '\n' +
     '━━━━━━━━━━━━━━━━━━\n' + DEV);
 }
 
